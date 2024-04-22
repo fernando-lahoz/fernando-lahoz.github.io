@@ -466,7 +466,7 @@ function hide_in_game_menu() {
 //--- END SCREEN ---------------------------------------------------------------
 
 function show_end_screen(level) {
-    //...
+    //... congratulations!!
 }
 
 function hide_end_screen() {

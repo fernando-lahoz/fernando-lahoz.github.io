@@ -883,7 +883,7 @@ window.addEventListener("keydown", (event) => {
             if (!key_pressed.change_chosen_block) {
                 key_pressed.change_chosen_block = true;
                 event_queue.push(GAME_EVENTS.playing.change_chosen_block);
-            }
+            } break;
         case "Enter":
             if (!key_pressed.show_menu) {
                 key_pressed.show_menu = true;
