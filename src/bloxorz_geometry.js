@@ -8,10 +8,31 @@ const lightblue = 	[0.5, 0.5, 1.0, 1.0];
 const darkred =	    [0.5, 0.2, 0.2, 1.0];
 const darkgreen =	[0.2, 0.5, 0.2, 1.0];
 const darkblue =	[0.2, 0.2, 0.5, 1.0];
+
+const lightblack = [0.2, 0.18, 0.164, 1.0];
+const black = [0, 0, 0, 1];
+
 const white =		[1.0, 1.0, 1.0, 1.0];
 const lightgrey =   [0.75, 0.75, 0.75, 1.0];
 const grey =        [0.5, 0.5, 0.5, 1.0];
 const darkgrey =    [0.25, 0.25, 0.25, 1.0];
+
+const tile_top_grey =    [ 202 / 255, 209 / 255, 217 / 255, 1.0 ];
+const switched_top_grey = [ 0.63, 0.6, 0.58, 1.0 ];
+const button_grey = switched_top_grey;
+
+const orange = [1.0, 0.55, 0.35, 1.0];
+const darkorange = [0.36, 0.11, 0.0, 1.0];
+const mediumorange = [0.48, 0.23, 0.08, 1.0];
+
+
+const block_grey = [ 0.46, 0.42, 0.45, 1.0 ];
+const block_darkpink = [ 0.537 /2, 0.415/2, 0.44/2, 1.0 ];
+const block_darkorange = [ 0.768/2, 0.474/2, 0.35/2, 1.0 ];
+
+const block_darkgrey = [ 0.15, 0.135, 0.11, 1.0 ];
+const block_dirtypink = [ 0.537, 0.415, 0.44, 1.0 ];
+const block_rustyorange = [ 0.768, 0.474, 0.35, 1.0 ];
 
 const cube_vertices = [
     [ 0.5, 0.5, 0.5, 1], //0
@@ -24,8 +45,7 @@ const cube_vertices = [
     [-0.5,-0.5,-0.5, 1], //7
 ];
 
-const cube_indices = [	
-//Solid Cube - use TRIANGLES, starts at 0, 36 vertices
+const cube_indices = [
     0,4,6, //front
     0,6,2,
     1,0,2, //right
@@ -40,24 +60,45 @@ const cube_indices = [
     6,3,2,
 ];
 
-const points_cube = [];
-cube_indices.forEach((value) => { points_cube.push(cube_vertices[value]) });
+const cube_textcoords_per_face = [
+    0,1, //front
+    1,1,
+    1,0,
+    0,1,
+    1,0,
+    0,0
+];
 
-// const color_cube = [	
-//     lightred, lightred, lightred, lightred, lightred, lightred,
-//     darkred, darkred, darkred, darkred, darkred, darkred,
-//     lightred, lightred, lightred, lightred, lightred, lightred,
-//     darkred, darkred, darkred, darkred, darkred, darkred,
-//     red, red, red, red, red, red,
-//     red, red, red, red, red, red,
-// ];
+const cube_hiding_face = [
+    0, 0, 0, 0, 0, 0, //front
+    1, 1, 1, 1, 1, 1, //right
+    1, 1, 1, 1, 1, 1, //back
+    1, 1, 1, 1, 1, 1, //left
+    1, 1, 1, 1, 1, 1, //top
+    1, 1, 1, 1, 1, 1, //bottom
+];
+
+const cube_hide_undermap = [ 0 ];
+const cube_show_undermap = [ 1 ];
+
+const cube_textcoords = [];
+for (let i = 0; i < 6; i++) { 
+    for (let j = 0; j < 12; j++) {
+        cube_textcoords.push(cube_textcoords_per_face[j]);
+    }
+}
+
+
+const points_cube = [];
+cube_indices.forEach((value) => { points_cube.push(cube_vertices[value]); });
+
 const color_cube = [	
-    lightred, lightred, lightred, lightred, lightred, lightred,
-    darkred, darkred, darkred, darkred, darkred, darkred,
-    lightblue, lightblue, lightblue, lightblue, lightblue, lightblue,
-    darkblue, darkblue, darkblue, darkblue, darkblue, darkblue,
-    red, red, red, red, red, red,
-    blue, blue, blue, blue, blue, blue,
+    block_rustyorange, block_rustyorange, block_rustyorange, block_rustyorange, block_rustyorange, block_rustyorange,
+    block_darkgrey, block_darkgrey, block_darkgrey, block_darkgrey, block_darkgrey, block_darkgrey,
+    block_darkorange, block_darkorange, block_darkorange, block_darkorange, block_darkorange, block_darkorange,
+    block_grey, block_grey, block_grey, block_grey, block_grey, block_grey,
+    block_dirtypink, block_dirtypink, block_dirtypink, block_dirtypink, block_dirtypink, block_dirtypink,
+    block_darkpink, block_darkpink, block_darkpink, block_darkpink, block_darkpink, block_darkpink,
 ];
 
 const color_cube_not_chosen = [	
@@ -67,8 +108,7 @@ const color_cube_not_chosen = [
     grey, grey, grey, grey, grey, grey,
     lightgrey, lightgrey, lightgrey, lightgrey, lightgrey, lightgrey,
     lightgrey, lightgrey, lightgrey, lightgrey, lightgrey, lightgrey,
-];	
-
+];
 
 const longblock_vertices = [
     [ 0.5, 1.5, 0.5, 1], //0
@@ -88,6 +128,45 @@ longblock_indices.forEach((value) => { points_longblock.push(longblock_vertices[
 
 const color_longblock = color_cube;
 
+
+// --- HOLE --------------------------------------------------------------------
+
+const hole_vertices = [
+    [ 0.499, 0.5, 0.499, 1], //0
+    [ 0.499, 0.5,-0.499, 1], //1
+    [ 0.499,-70, 0.499, 1], //2
+    [ 0.499,-70,-0.499, 1], //3
+    [-0.499, 0.5, 0.499, 1], //4
+    [-0.499, 0.5,-0.499, 1], //5
+    [-0.499,-70, 0.499, 1], //6
+    [-0.499,-70,-0.499, 1], //7
+];
+
+const hole_indices = [
+    0,4,6, //front
+    0,6,2,
+    1,0,2, //right
+    1,2,3, 
+    5,1,3, //back
+    5,3,7,
+    4,5,7, //left
+    4,7,6,
+
+    6,7,3, //bottom
+    6,3,2,
+];
+
+const points_hole = [];
+hole_indices.forEach((value) => { points_hole.push(hole_vertices[value]) });
+
+const color_hole = [	
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    lightblack, lightblack, lightblack, lightblack, lightblack, lightblack,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    lightblack, lightblack, lightblack, lightblack, lightblack, lightblack,
+
+    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen,
+];
 
 // --- FLOOR -------------------------------------------------------------------
 
@@ -112,40 +191,58 @@ const color_tile_plain = [
     darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
     grey, grey, grey, grey, grey, grey,
     darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
-    lightgrey, lightgrey, lightgrey, lightgrey, lightgrey, lightgrey,
-    lightgrey, lightgrey, lightgrey, lightgrey, lightgrey, lightgrey,
+    tile_top_grey, tile_top_grey, tile_top_grey, tile_top_grey, tile_top_grey, tile_top_grey,
+    tile_top_grey, tile_top_grey, tile_top_grey, tile_top_grey, tile_top_grey, tile_top_grey,
 ];
 
 const color_tile_fragile = [
-    green, green, green, green, green, green,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    green, green, green, green, green, green,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen,
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen,
+    orange, orange, orange, orange, orange, orange,
+    darkorange, darkorange, darkorange, darkorange, darkorange, darkorange,
+    orange, orange, orange, orange, orange, orange,
+    darkorange, darkorange, darkorange, darkorange, darkorange, darkorange,
+    orange, orange, orange, orange, orange, orange,
+    orange, orange, orange, orange, orange, orange,
 ];	
 
 const color_tile_switched = [
-    blue, blue, blue, blue, blue, blue,
-    darkblue, darkblue, darkblue, darkblue, darkblue, darkblue,
-    blue, blue, blue, blue, blue, blue,
-    darkblue, darkblue, darkblue, darkblue, darkblue, darkblue,
-    lightblue, lightblue, lightblue, lightblue, lightblue, lightblue,
-    lightblue, lightblue, lightblue, lightblue, lightblue, lightblue,
+    grey, grey, grey, grey, grey, grey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    grey, grey, grey, grey, grey, grey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    switched_top_grey, switched_top_grey, switched_top_grey, switched_top_grey, switched_top_grey, switched_top_grey,
+    switched_top_grey, switched_top_grey, switched_top_grey, switched_top_grey, switched_top_grey, switched_top_grey,
+];
+
+const color_tile_activated = [
+    green, green, green, green, green, green,
+    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
+    green, green, green, green, green, green,
+    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
+    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen,
+    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, switched_top_grey,
+];
+
+const color_tile_deactivated = [
+    red, red, red, red, red, red,
+    darkred, darkred, darkred, darkred, darkred, darkred,
+    red, red, red, red, red, red,
+    darkred, darkred, darkred, darkred, darkred, darkred,
+    lightred, lightred, lightred, lightred, lightred, lightred,
+    lightred, lightred, lightred, lightred, lightred, lightred,
 ];
 
 
 // --- SOFT BUTTON -------------------------------------------------------------
 
 const softbutton_vertices = [
-    [ 0.20, -0.40,-0.35, 1], //0
-    [ 0.35, -0.40,-0.20, 1], //1
-    [ 0.35, -0.40, 0.20, 1], //2
-    [ 0.20, -0.40, 0.35, 1], //3
-    [-0.20, -0.40, 0.35, 1], //4
-    [-0.35, -0.40, 0.20, 1], //5
-    [-0.35, -0.40,-0.20, 1], //6
-    [-0.20, -0.40,-0.35, 1], //7
+    [ 0.20, -0.43,-0.35, 1], //0
+    [ 0.35, -0.43,-0.20, 1], //1
+    [ 0.35, -0.43, 0.20, 1], //2
+    [ 0.20, -0.43, 0.35, 1], //3
+    [-0.20, -0.43, 0.35, 1], //4
+    [-0.35, -0.43, 0.20, 1], //5
+    [-0.35, -0.43,-0.20, 1], //6
+    [-0.20, -0.43,-0.35, 1], //7
 
     [ 0.20, -0.50,-0.35, 1], //8
     [ 0.35, -0.50,-0.20, 1], //9
@@ -185,7 +282,7 @@ const softbutton_indices = [
     1, 8, 9,
     
     1, 9, 2, // Side 7
-    2, 9, 3,
+    2, 9, 10,
     
     2, 10, 3, // Side 8
     3, 10, 11
@@ -195,35 +292,36 @@ const points_softbutton = [];
 softbutton_indices.forEach((value) => { points_softbutton.push(softbutton_vertices[value]) });
 
 const color_softbutton = [
-    lightblue, lightblue, lightblue, lightblue, lightblue, lightblue, lightblue, lightblue, lightblue,
-    lightblue, lightblue, lightblue, lightblue, lightblue, lightblue, lightblue, lightblue, lightblue,
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, button_grey,
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, button_grey,
 
-    blue, blue, blue, blue, blue, blue,
-    darkblue, darkblue, darkblue, darkblue, darkblue, darkblue,
-    blue, blue, blue, blue, blue, blue,
-    darkblue, darkblue, darkblue, darkblue, darkblue, darkblue,
-    blue, blue, blue, blue, blue, blue,
-    darkblue, darkblue, darkblue, darkblue, darkblue, darkblue,
-    blue, blue, blue, blue, blue, blue,
-    darkblue, darkblue, darkblue, darkblue, darkblue, darkblue,
+
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
 ];
 
 
 // --- HEAVY BUTTON -------------------------------------------------------------
 
 const heavybutton_vertices = [
-    [ 0.20, -0.40,-0.35, 1], //0
-    [ 0.35, -0.40,-0.20, 1], //1
-    [ 0.15, -0.40,0, 1], // 2
-    [ 0.35, -0.40, 0.20, 1], //3
-    [ 0.20, -0.40, 0.35, 1], //4
-    [ 0, -0.40,0.15, 1], // 5
-    [-0.20, -0.40, 0.35, 1], //6
-    [-0.35, -0.40, 0.20, 1], //7
-    [-0.15, -0.40,0, 1], // 8
-    [-0.35, -0.40,-0.20, 1], //9
-    [-0.20, -0.40,-0.35, 1], //10
-    [0, -0.40,-0.15, 1], // 11
+    [ 0.20, -0.43,-0.35, 1], //0
+    [ 0.35, -0.43,-0.20, 1], //1
+    [ 0.15, -0.43,0, 1], // 2
+    [ 0.35, -0.43, 0.20, 1], //3
+    [ 0.20, -0.43, 0.35, 1], //4
+    [ 0, -0.43,0.15, 1], // 5
+    [-0.20, -0.43, 0.35, 1], //6
+    [-0.35, -0.43, 0.20, 1], //7
+    [-0.15, -0.43,0, 1], // 8
+    [-0.35, -0.43,-0.20, 1], //9
+    [-0.20, -0.43,-0.35, 1], //10
+    [0, -0.43,-0.15, 1], // 11
 
     [ 0.20, -0.50,-0.35, 1], //12
     [ 0.35, -0.50,-0.20, 1], //13
@@ -293,24 +391,24 @@ const points_heavybutton = [];
 heavybutton_indices.forEach((value) => { points_heavybutton.push(heavybutton_vertices[value]) });
 
 const color_heavybutton = [
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, 
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, 
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, 
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, 
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen,
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, 
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, 
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, 
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, 
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey,
 
-    green, green, green, green, green, green,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    green, green, green, green, green, green,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    green, green, green, green, green, green,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    green, green, green, green, green, green,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    green, green, green, green, green, green,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    green, green, green, green, green, green,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
 ];
 
 
@@ -318,32 +416,32 @@ const color_heavybutton = [
 
 const split_vertices = [
     // Right arm (top)
-    [ 0.10, -0.40, 0.34, 1], //0
-    [ 0.25, -0.40, 0.25, 1], //1
-    [ 0.34, -0.40, 0.10, 1], //2
-    [ 0.35, -0.40, 0.00, 1], //3
-    [ 0.34, -0.40,-0.10, 1], //4
-    [ 0.25, -0.40,-0.25, 1], //5
-    [ 0.10, -0.40,-0.34, 1], //6
-    [ 0.10, -0.40,-0.17, 1], //7
-    [ 0.17, -0.40,-0.10, 1], //8
-    [ 0.20, -0.40, 0.00, 1], //9
-    [ 0.17, -0.40, 0.10, 1], //10
-    [ 0.10, -0.40, 0.17, 1], //11
+    [ 0.10, -0.43, 0.34, 1], //0
+    [ 0.25, -0.43, 0.25, 1], //1
+    [ 0.34, -0.43, 0.10, 1], //2
+    [ 0.35, -0.43, 0.00, 1], //3
+    [ 0.34, -0.43,-0.10, 1], //4
+    [ 0.25, -0.43,-0.25, 1], //5
+    [ 0.10, -0.43,-0.34, 1], //6
+    [ 0.10, -0.43,-0.17, 1], //7
+    [ 0.17, -0.43,-0.10, 1], //8
+    [ 0.20, -0.43, 0.00, 1], //9
+    [ 0.17, -0.43, 0.10, 1], //10
+    [ 0.10, -0.43, 0.17, 1], //11
 
     // Left arm (top)
-    [-0.10, -0.40, 0.34, 1], //12
-    [-0.10, -0.40, 0.17, 1], //13
-    [-0.17, -0.40, 0.10, 1], //14
-    [-0.20, -0.40, 0.00, 1], //15
-    [-0.17, -0.40,-0.10, 1], //16
-    [-0.10, -0.40,-0.17, 1], //17
-    [-0.10, -0.40,-0.34, 1], //18
-    [-0.25, -0.40,-0.25, 1], //19
-    [-0.34, -0.40,-0.10, 1], //20
-    [-0.35, -0.40, 0.00, 1], //21
-    [-0.34, -0.40, 0.10, 1], //22
-    [-0.25, -0.40, 0.25, 1], //23
+    [-0.10, -0.43, 0.34, 1], //12
+    [-0.10, -0.43, 0.17, 1], //13
+    [-0.17, -0.43, 0.10, 1], //14
+    [-0.20, -0.43, 0.00, 1], //15
+    [-0.17, -0.43,-0.10, 1], //16
+    [-0.10, -0.43,-0.17, 1], //17
+    [-0.10, -0.43,-0.34, 1], //18
+    [-0.25, -0.43,-0.25, 1], //19
+    [-0.34, -0.43,-0.10, 1], //20
+    [-0.35, -0.43, 0.00, 1], //21
+    [-0.34, -0.43, 0.10, 1], //22
+    [-0.25, -0.43, 0.25, 1], //23
 
     // Right arm (bottom)
     [ 0.10, -0.50, 0.34, 1], //24
@@ -476,43 +574,43 @@ const points_split = [];
 split_indices.forEach((value) => { points_split.push(split_vertices[value]) });
 
 const color_split = [
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, 
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, 
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, 
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, 
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen,
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, 
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, 
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, 
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, 
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey,
 
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    green, green, green, green, green, green,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    green, green, green, green, green, green,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    grey, grey, grey, grey, grey, grey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    grey, grey, grey, grey, grey, grey,
 
 
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, 
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, 
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, 
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, 
-    lightgreen, lightgreen, lightgreen, lightgreen, lightgreen, lightgreen,
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, 
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, 
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, 
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey, 
+    button_grey, button_grey, button_grey, button_grey, button_grey, button_grey,
 
-    green, green, green, green, green, green,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    green, green, green, green, green, green,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
-    darkgreen, darkgreen, darkgreen, darkgreen, darkgreen, darkgreen,
+    grey, grey, grey, grey, grey, grey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    grey, grey, grey, grey, grey, grey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
+    darkgrey, darkgrey, darkgrey, darkgrey, darkgrey, darkgrey,
 ];
 

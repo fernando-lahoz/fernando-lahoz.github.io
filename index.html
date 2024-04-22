@@ -1,12 +1,67 @@
 <!DOCTYPE html>
-<html>
+<html lang = "en">
 <head>
+    
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
     <title>Bloxorz</title>
+    <link rel="icon" href="assets/favicon.ico">
+
+    <link rel="stylesheet" href="bloxorz.css">
 
     <!-- Vertex shader -->
+    <script id="tile-vertex-shader" type="x-shader/x-vertex">
+        attribute vec3 vPosition;
+        attribute vec4 vColor;
+
+        attribute vec2 vTextcoords;
+
+        uniform mat4 model; // model matrix
+        uniform mat4 view; // view matrix 
+        uniform mat4 projection; // projection matrix
+        varying vec4 varColor;
+        varying vec2 varTextcoords;
+        void main() 
+        {
+            gl_Position = projection * view * model * vec4(vPosition, 1);
+            varColor = vColor;
+            varTextcoords = vTextcoords;
+        }
+    </script>
+    <script id="block-vertex-shader" type="x-shader/x-vertex">
+        attribute vec3 vPosition;
+        attribute vec4 vColor;
+
+        attribute vec2 vTextcoords;
+
+        attribute float vHideLevel;
+        attribute float vHidingFace;
+
+        uniform mat4 model; // model matrix
+        uniform mat4 view; // view matrix 
+        uniform mat4 projection; // projection matrix
+        varying vec4 varColor;
+        varying vec2 varTextcoords;
+
+        varying float varHideLevel;
+
+        varying vec4 varPosition;
+
+        void main() 
+        {
+            gl_Position = projection * view * model * vec4(vPosition, 1);
+            
+            varColor = vColor;
+            varTextcoords = vTextcoords;
+            varHideLevel = vHideLevel;
+            varPosition = model * vec4(vPosition, 1);
+        }
+    </script>
     <script id="vertex-shader" type="x-shader/x-vertex">
         attribute vec3 vPosition;
         attribute vec4 vColor;
+
         uniform mat4 model; // model matrix
         uniform mat4 view; // view matrix 
         uniform mat4 projection; // projection matrix
@@ -19,14 +74,59 @@
     </script>
 
     <!-- Fragment shader -->
+    <script id="tile-fragment-shader" type="x-shader/x-fragment">
+        #define ALPHA (2.2)
+
+        precision mediump float;
+        varying vec4 varColor;
+        uniform vec4 colorMult;
+        varying vec2 varTextcoords;
+        void main() 
+        { 
+            if (varTextcoords[0] < 0.01 || varTextcoords[0] > 0.99 ||
+                varTextcoords[1] < 0.01 || varTextcoords[1] > 0.99)
+            {
+                gl_FragColor = vec4(113.0/255.0, 114.0/255.0, 116.0/255.0, 1);
+            }
+            else
+            {
+                float x = varTextcoords[0];
+                float y = varTextcoords[1];
+                float val =  exp(ALPHA * (pow((x-0.5),4.0) + pow((y-0.5),4.0)));
+
+                gl_FragColor = varColor * colorMult * vec4( val, val, val, 1 );
+            }
+        }
+    </script>
+    <script id="block-fragment-shader" type="x-shader/x-fragment">
+        #define ALPHA (6.0)
+
+        precision mediump float;
+        varying vec4 varColor;
+        uniform vec4 colorMult;
+        varying vec2 varTextcoords;
+        varying float varHideLevel;
+        varying vec4 varPosition;
+        void main() 
+        { 
+            if (varPosition[1] < varHideLevel) {
+                discard;
+            }
+
+            float x = varTextcoords[0];
+            float y = varTextcoords[1];
+            float val =  exp(-ALPHA * (pow((x-0.5),4.0) + pow((y-0.5),4.0)));
+
+            gl_FragColor = varColor * colorMult * vec4( val, val, val, 1 );
+        }
+    </script>
     <script id="fragment-shader" type="x-shader/x-fragment">
-    	precision mediump float;
-    	varying vec4 varColor;
-    	uniform vec4 colorMult;
-    	void main() 
-    	{ 
+        precision mediump float;
+        varying vec4 varColor;
+        uniform vec4 colorMult;
+        void main() { 
             gl_FragColor = varColor * colorMult;
-    	}
+        }
     </script>
 
     <script type="text/javascript" src="lib/webgl-utils.js"></script>
@@ -35,30 +135,30 @@
 
     <script type="text/javascript" src="src/bloxorz_logic.js"></script>
     <script type="text/javascript" src="src/bloxorz_geometry.js"></script>
+    <script type="text/javascript" src="src/bloxorz_menu.js"></script>
+    <script type="text/javascript" src="src/bloxorz_save_state.js"></script>
     <script type="text/javascript" src="src/bloxorz.js"></script>
-
-    <style>
-        body {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            overflow: hidden;
-        }
-
-        #gl-canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-            padding: 0;
-            margin: 0;
-        }
-    </style>
+    
 </head>
 
 <body>
-    <!-- El canvas, que permite renderizar con WebGL -->
-    <canvas id="gl-canvas" style="display: block; width : 100% ; height : 100% ; padding: 0; margin: 0;">
-        Oops ... your browser doesn't support the HTML5 canvas element
-    </canvas>
+
+    <div class="stage">
+        <canvas id="gl-canvas" style="position:absolute; z-index: 0; height: 100%; width: 100%">
+            Oops ... your browser doesn't support the HTML5 canvas element
+        </canvas>
+        
+        <div id="game-window" class="game-window-container">
+            <!--Aqui esta contenido el titulo central del juego-->
+            
+            <!--
+                <div class="tutorial-container">
+                    <p class="bloxorz-text" style="width:65%">1/9<br/><br/>The aim of the game is to get the block to fall into the square hole at the end of each stage. <br/> There are 33 stages to complete.</p>
+                    <img title="Comeme los cojones visual, contento??" src="https://ih0.redbubble.net/image.206201235.0962/flat,800x800,070,f.u2.jpg" style="height:100%"></img>
+                </div>
+            -->
+        </div>
+    </div>
+
 </body>
 </html>

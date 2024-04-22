@@ -1,16 +1,13 @@
-//TODO: passcodes
+//TODO: passcodes ...
 //TODO: count moves
 //TODO: timer
-//TODO: hole slab
 
-//ANIMATIONS:
-// - movement
-// - fall
-// - winning
-// - split selection
-// - switched toggle
+//TODO: record en el menú
 
-let move_counter = 0;
+//TODO: add another line to slabs
+
+//TODO: Tutorial should explain camera rotation, zoom in/out and adaptative controls
+//TODO: Tutorial should explain K, L and Enter...
 
 // Block types
 
@@ -24,6 +21,7 @@ const IDLE = 0;
 const MOVING = 1;
 const FALLING = 2;
 const WINNING = 3;
+const SPLITING = 4;
 
 // Movement directions
 
@@ -120,7 +118,8 @@ function move_player_position_short(dx, dz) {
 }
 
 function move_player_position(dx, dz) {
-    move_counter += 1;
+    game_state.move_counter += 1;
+    update_in_game_panel_state(game_state);
     if (player.block_type == LONG) { move_player_position_long(dx, dz); }
     else { move_player_position_short(dx, dz); }
 }
@@ -149,10 +148,10 @@ function get_distance_to_rotation_edge(dx, dz) {
 function get_longblock_rotation() {
     const [[x0, y0, z0], [x1, y1, z1]] = player.position;
 
-    if (y0 === 1 && y1 === 0) {
+    if (y0 > y1) {
         return rotate(180.0, vec3(1, 0, 0));
     }
-    else if (y0 === 0 && y1 === 1) {
+    else if (y0 < y1) {
         return new mat4();
     }
     else if (x0 > x1) {
@@ -167,11 +166,54 @@ function get_longblock_rotation() {
 }
 
 let game_state = {
-    level: 0, //
+    level: 1,
     matrix: null, // 10 x 15
     
-
+    move_counter: 0,
+    attempts: 0,
+    timer: {
+        minutes: 0,
+        seconds: 0,
+        hours: 0,
+    },
 };
+
+function reset_game_state() {
+    game_state = {
+        level: 1,
+        matrix: null, // 10 x 15
+        
+        move_counter: 0,
+        attempts: 0,
+        timer: {
+            hours: 0,
+            minutes: 0,
+            seconds: 0,
+        },
+    };
+}
+
+let timer_interval_id = null;
+
+function start_timer() {
+    clearInterval(timer_interval_id);
+    timer_interval_id = setInterval(function() {
+        game_state.timer.seconds += 1;
+        if (game_state.timer.seconds === 60) {
+            game_state.timer.seconds = 0;
+            game_state.timer.minutes += 1;
+            if (game_state.timer.minutes === 60) {
+                game_state.timer.minutes = 0;
+                game_state.timer.hours += 1;
+            }
+        }
+        update_in_game_panel_state(game_state);
+    }, 1000);
+}
+
+function stop_timer() {
+    clearInterval(timer_interval_id);
+}
 
 
 // Floor types
@@ -215,21 +257,52 @@ function switched(active) { return { type: SWITCHED, active: active}; }
 function hole() { return { type: HOLE }; } 
 
 
+const SWITCHED_OFF = 0;
+const SWITCHED_ON = 1;
+
+const SWITCH_TIME = 0.2;
 
 function activate_button(button) {
     if (button.open) {
         button.open.forEach((tile) => {
+            const pre_active = tile.active;
             tile.active = true;
+            animation_array.push({
+                type: SWITCHED_ON,
+                remaining_time: SWITCH_TIME,
+                falling_speed: 50.0,
+                falling_distance: 5,
+                affected_objects: tile.affected_objects,
+                pre_active: pre_active,
+            })
         });
     }
     if (button.close) {
         button.close.forEach((tile) => {
+            const pre_active = tile.active;
             tile.active = false;
+            animation_array.push({
+                type: SWITCHED_OFF,
+                remaining_time: SWITCH_TIME,
+                falling_speed: 0.0,
+                falling_distance: 0.0,
+                affected_objects: tile.affected_objects,
+                pre_active: pre_active,
+            })
         });
     }
     if (button.toggle) {
         button.toggle.forEach((tile) => {
+            const pre_active = tile.active;
             tile.active = !tile.active;
+            animation_array.push({
+                type: tile.active ? SWITCHED_ON : SWITCHED_OFF,
+                remaining_time: SWITCH_TIME,
+                falling_speed: tile.active ? 50 : 0.0,
+                falling_distance: tile.active ? 5 : 0.0,
+                affected_objects: tile.affected_objects,
+                pre_active: pre_active,
+            })
         });
     }
 }
@@ -239,6 +312,9 @@ function activate_button(button) {
 
 const BOTH_BLOCKS_FALL = -1;
 const NO_BLOCK_FALL = -2;
+const FRAGILE_BLOCK_FALLS = -3;
+
+let last_pressing_tile = [null, null];
 
 function get_after_movement_state() {
 
@@ -254,7 +330,6 @@ function get_after_movement_state() {
     {
         player.block_type = LONG;
         player.chosen_block = 0;
-        console.log("MIXED!!!!");
 
         previsualization_events.block_mixed = true;
     }
@@ -264,12 +339,11 @@ function get_after_movement_state() {
     function between(a, x, b) { return x >= a && x <= b; }
 
     const tile0_out = !between(0, i0, LEVEL_MATRIX.H - 1) || !between(0, j0, LEVEL_MATRIX.W - 1);
-    const tile1_out =!between(0, i1, LEVEL_MATRIX.H - 1) || !between(0, j1, LEVEL_MATRIX.W - 1);
+    const tile1_out = !between(0, i1, LEVEL_MATRIX.H - 1) || !between(0, j1, LEVEL_MATRIX.W - 1);
 
     if (tile0_out && tile1_out) { return [FALLING, BOTH_BLOCKS_FALL]; }
     else if (tile0_out) { return [FALLING, 0]; }
     else if (tile1_out) { return [FALLING, 1]; }
-
 
     const tile0 = game_state.matrix[i0][j0];
     const tile1 = game_state.matrix[i1][j1];
@@ -280,26 +354,27 @@ function get_after_movement_state() {
         switch (tile0.type) {
 
             case PLAIN:
-                return [IDLE, BOTH_BLOCKS_FALL];
+                return [IDLE, NO_BLOCK_FALL];
 
             case HOLE:
                 return [WINNING, BOTH_BLOCKS_FALL];
 
             case FRAGILE:
+                return [FALLING, FRAGILE_BLOCK_FALLS];
+
             case AIR:
                 return [FALLING, BOTH_BLOCKS_FALL];
 
             case BUTTON:
                 activate_button(tile0);
-                return [IDLE, BOTH_BLOCKS_FALL];
+                return [IDLE, NO_BLOCK_FALL];
 
             case SPLIT: 
                 player.position = [tile0.p1, tile0.p2];
                 player.block_type = SHORT;
-                // This will set to 0 and make choose animation
                 player.chosen_block = 0;
-                previsualization_events.change_chosen_block = true; 
-                return [IDLE, BOTH_BLOCKS_FALL];
+                previsualization_events.change_chosen_block = true;
+                return [SPLITING, NO_BLOCK_FALL];
             
             case SWITCHED:
                 return [tile0.active ? IDLE : FALLING, BOTH_BLOCKS_FALL];
@@ -308,12 +383,26 @@ function get_after_movement_state() {
 
     // --- Check if player pressed a soft button -------------------------------
 
-    if (tile0.type === BUTTON && tile0.activation === SOFT) {
+    if ((player.chosen_block === 0 || player.block_type === LONG) &&
+        tile0.type === BUTTON && tile0.activation === SOFT &&
+        last_pressing_tile[0] !== player.position[0])
+    {
         activate_button(tile0);
+        last_pressing_tile[0] = player.position[0];
+    }
+    else if (last_pressing_tile[0] !== player.position[0]) {
+        last_pressing_tile[0] = null;
     }
 
-    if (tile1.type === BUTTON && tile1.activation === SOFT) {
+    if ((player.chosen_block === 1 || player.block_type === LONG) &&
+        tile1.type === BUTTON && tile1.activation === SOFT &&
+        last_pressing_tile[1] !== player.position[1])
+    {
         activate_button(tile1);
+        last_pressing_tile[1] = player.position[1];
+    }
+    else if (last_pressing_tile[1] !== player.position[1]) {
+        last_pressing_tile[1] = null;
     }
 
     // -------------------------------------------------------------------------
@@ -354,19 +443,19 @@ const LEVEL_INITIAL_POSITION = [
     [ vec3(2, 0, 4), vec3(2, 1, 4) ], // 18
     [ vec3(1, 0, 0), vec3(1, 1, 0) ], // 19
     [ vec3(8, 0, 2), vec3(8, 1, 2) ], // 20
-    [ vec3(0, 0, 0), vec3(0, 1, 0) ], // 21
-    [ vec3(0, 0, 0), vec3(0, 1, 0) ], // 22
-    [ vec3(0, 0, 0), vec3(0, 1, 0) ], // 23
-    [ vec3(0, 0, 0), vec3(0, 1, 0) ], // 24
-    [ vec3(0, 0, 0), vec3(0, 1, 0) ], // 25
-    [ vec3(0, 0, 0), vec3(0, 1, 0) ], // 26
-    [ vec3(0, 0, 0), vec3(0, 1, 0) ], // 27
-    [ vec3(0, 0, 0), vec3(0, 1, 0) ], // 28
-    [ vec3(0, 0, 0), vec3(0, 1, 0) ], // 29
-    [ vec3(0, 0, 0), vec3(0, 1, 0) ], // 30
-    [ vec3(0, 0, 0), vec3(0, 1, 0) ], // 31
-    [ vec3(0, 0, 0), vec3(0, 1, 0) ], // 32
-    [ vec3(0, 0, 0), vec3(0, 1, 0) ], // 33
+    [ vec3(1, 0, 3), vec3(1, 1, 3) ], // 21
+    [ vec3(2, 0, 3), vec3(2, 1, 3) ], // 22
+    [ vec3(4, 0, 7), vec3(4, 1, 7) ], // 23
+    [ vec3(2, 0, 3), vec3(2, 1, 3) ], // 24
+    [ vec3(1, 0, 7), vec3(1, 1, 7) ], // 25
+    [ vec3(10, 0, 5), vec3(10, 1, 5) ], // 26
+    [ vec3(1, 0, 1), vec3(1, 1, 1) ], // 27
+    [ vec3(2, 0, 2), vec3(2, 1, 2) ], // 28
+    [ vec3(7, 0, 3), vec3(7, 1, 3) ], // 29
+    [ vec3(2, 0, 4), vec3(2, 1, 4) ], // 30
+    [ vec3(12, 0, 7), vec3(12, 1, 7) ], // 31
+    [ vec3(11, 0, 6), vec3(11, 1, 6) ], // 32
+    [ vec3(1, 0, 3), vec3(1, 1, 3) ], // 33
 ];
 
 const LEVEL_MATRIX = {
@@ -795,6 +884,340 @@ const LEVEL_MATRIX = {
                 [p, O1,_, _, _, _, _, _, _, _, _, _, p, p, p],
                 [_, _, _, _, _, _, _, _, _, _, _, _, p, H, p],
                 [_, _, _, _, _, _, _, _, _, _, _, _, p, p, p]
+            ]
+        },
+        function () {
+            const _ = air();
+            const p = plain();
+            const H = hole();
+            const S1 = switched(false);
+            const S2 = switched(false);
+            const X1 = button(HEAVY, null, null, [ S1 ]);
+            const X2 = button(HEAVY, null, null, [ S2 ]);
+            return [ // Level 21
+                [_, _, _, _, _, _, _, _, p, p, _, _, _, _, _],
+                [_, _, _, _, _, _, _, p, p, p, _, _, _, _, _],
+                [p, p, _, _, p, p, p, p, p, p, _, _, _, _, _],
+                [p, p, p, p, p, p, _, _, p, _, _, _, _, _, _],
+                [p, p, p, p, _, _, _, _, p, _, _, _, p, p, p],
+                [_, p, p, _, _, _, _, _, X1,p, p, p, p, H, p],
+                [_, _, p, _, _, _, _, _, X2,p, _, _, p, p, p],
+                [_, _, p, p, p, S2,_, _, p, p, _, _, _, _, _],
+                [_, _, _, p, p, p, _, _, p, p, _, _, _, _, _],
+                [_, _, _, S1,p, p, p, p, p, p, _, _, _, _, _]
+            ]
+        },
+        function () {
+            const _ = air();
+            const p = plain();
+            const H = hole();
+            const S1 = switched(false);
+            const S2 = switched(false);
+            const S3 = switched(true);
+            const X1 = button(HEAVY, null, null, [ S1 ]);
+            const X2 = button(HEAVY, null, null, [ S2 ]);
+            const O1 = button(SOFT, null, [ S1, S2 ], null);
+            const O2 = button(SOFT, null, [ S1, S2 ], null);
+            return [ // Level 22
+                [_, _, _, _, _, _, p, p, _, _, _, _, p, p, p],
+                [_, _, _, _, p, p, p, p, p, p, _, _, p, H, p],
+                [_, p, p, p, p, p, p, O2,p, p, p, p, p, p, p],
+                [_, p, p, p, p, O1,_, _, p, p, p, p, p, S1,_],
+                [_, p, p, p, _, _, _, _, _, _, p, p, p, _, _],
+                [_, _, p, _, _, _, _, _, _, _, _, p, _, _, _],
+                [_, _, p, _, _, _, _, _, _, _, _, p, _, _, _],
+                [_, _, p, S2,_, _, _, _, _, _, S3,p, _, _, _],
+                [_, _, p, p, _, _, _, _, _, _, p, p, _, _, _],
+                [_, _, _, X1,_, _, _, _, _, _, X2,_, _, _, _]
+            ]
+        },
+        function () {
+            const _ = air();
+            const p = plain();
+            const f = fragile();
+            const H = hole();
+            const S1 = switched(true);
+            const S2 = switched(true);
+            const S3 = switched(false);
+            const S4 = switched(false);
+            const S5 = switched(false);
+            const S6 = switched(false);
+            const X = button(HEAVY, [ S6 ], null, null);
+            const O1 = button(SOFT, [ S5 ], [ S3 ], null);
+            const O2 = button(SOFT, [ S3 ], null, [ S4 ]);
+            const O3 = button(SOFT, null, [ S1, S2 ], null);
+            const U = split(vec3(12, 0, 7), vec3(2, 0, 2));
+            return [ // Level 23
+                [_, p, p, p, _, _, _, _, _, _, _, _, p, p, p],
+                [_, p, X, p, _, _, _, _, _, _, _, _, p, O2,p],
+                [_, p, p, p, _, _, _, p, p, p, S2,S2,p, p, p],
+                [S5,p, p, p, S6,_, _, p, H, p, _, _, p, p, O3],
+                [p, _, _, _, p, _, _, p, p, p, _, _, _, _, p],
+                [O1,_, _, _, p, _, _, f, f, f, _, _, _, _, p],
+                [p, S3,S3,p, p, p, f, f, f, f, f, p, p, p, S1],
+                [_, _, _, p, p, p, f, f, f, f, f, p, U, p, _],
+                [_, _, _, p, p, p, f, f, f, f, f, p, p, p, _],
+                [_, _, _, p, p, p, p, p, S4,_, _, _, _, _, _]
+            ]
+        },
+        function () {
+            const _ = air();
+            const p = plain();
+            const H = hole();
+            const S1 = switched(false);
+            const S2 = switched(false);
+            const S3 = switched(false);
+            const S4 = switched(false);
+            const X1 = button(HEAVY, [ S1 ], null, null);
+            const X2 = button(HEAVY, [ S3 ], null, null);
+            const X3 = button(HEAVY, [ S2 ], null, null);
+            const X4 = button(HEAVY, [ S4 ], null, null);
+            const U = split(vec3(6, 0, 7), vec3(8, 0, 7));
+            return [ // Level 24
+                [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
+                [_, _, _, _, _, _, _, _, _, _, _, p, p, p, p],
+                [_, _, _, _, S1,p, p, p, p, p, p, p, X3,p, U],
+                [_, _, p, S2,S2,p, X2,p, _, _, _, p, p, p, p],
+                [_, X1,p, _, _, p, p, _, _, _, _, _, _, p, _],
+                [_, p, p, _, _, p, _, _, _, _, _, _, _, p, _],
+                [_, p, p, p, p, p, _, _, _, _, _, p, p, p, _],
+                [_, p, p, p, _, _, p, p, p, S4,S4,p, H, p, _],
+                [_, _, _, _, _, _, X4,p, S3,_, _, p, p, p, _],
+                [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _]
+            ]
+        },
+        function () {
+            const _ = air();
+            const p = plain();
+            const H = hole();
+            const S1 = switched(false);
+            const S2 = switched(true);
+            const S3 = switched(true);
+            const S4 = switched(false);
+            const S5 = switched(false);
+            const X1 = button(HEAVY, [ S1 ], null, null);
+            const O1 = button(SOFT, null, null, [ S1, S5 ]);
+            const O2 = button(SOFT, [ S4 ], [ S2 ], null);
+            return [ // Level 25
+                [_, _, p, p, _, _, _, _, _, _, _, _, _, _, _],
+                [_, _, p, p, p, _, _, _, _, _, _, _, _, _, _],
+                [_, _, p, p, O1,_, _, _, _, _, p, p, p, S5,_],
+                [_, _, _, p, p, p, p, S4,_, _, p, H, p, S5,_],
+                [_, _, _, _, _, _, p, p, S1,S1,p, p, p, _, _],
+                [_, p, p, _, _, _, p, p, _, _, _, _, _, _, _],
+                [p, p, X1,p, S2,S2,p, p, _, _, _, _, _, _, _],
+                [p, p, S3,_, _, _, p, p, _, _, _, p, p, p, _],
+                [p, p, S3,_, _, _, p, p, O2,p, p, p, p, p, _],
+                [_, _, _, _, _, _, _, _, _, _, _, p, p, p, _]
+            ]
+        },
+        function () {
+            const _ = air();
+            const p = plain();
+            const H = hole();
+            const S1 = switched(true);
+            const S2 = switched(false);
+            const X = button(HEAVY, [ S2 ], null, null);
+            const O = button(SOFT, null,  [ S1 ], null);
+            const U = split(vec3(12, 0, 3), vec3(10, 0, 5));
+            return [ // Level 26
+                [_, _, _, _, _, p, p, p, p, _, _, _, _, U, _],
+                [_, _, _, _, _, p, p, O, p, p, p, _, _, p, _],
+                [_, _, _, _, p, p, p, p, p, p, p, _, _, p, _],
+                [p, p, S1,S1,p, p, p, p, _, _, p, p, p, p, _],
+                [p, p, p, S2,_, _, p, _, _, _, p, p, _, _, _],
+                [p, p, p, _, _, _, p, _, _, _, p, _, _, _, _],
+                [_, p, _, _, _, _, p, p, p, _, _, _, _, _, _],
+                [_, X, _, _, _, _, p, H, p, S2,_, _, _, _, _],
+                [_, _, _, _, _, _, p, p, p, _, _, _, _, _, _],
+                [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _]
+            ]
+        },
+        function () {
+            const _ = air();
+            const p = plain();
+            const f = fragile();
+            const H = hole();
+            const S1 = switched(true);
+            const S2 = switched(true);
+            const X = button(HEAVY, null, [ S1, S2 ], null);
+            const O1 = button(SOFT, null, [ S1 ], null);
+            const O2 = button(SOFT, null, [ S2 ], null);
+            return [ // Level 27
+                [p, p, p, _, _, _, _, p, p, p, p, p, p, p, p],
+                [p, p, p, p, p, p, p, p, p, p, p, _, _, p, p],
+                [p, p, p, _, _, _, _, p, p, _, _, _, _, p, p],
+                [_, _, _, _, _, _, _, _, _, _, _, _, p, X, p],
+                [_, _, _, _, _, _, _, _, _, _, _, _, p, p, _],
+                [p, p, p, _, _, f, f, f, f, p, _, _, O1,O2,_],
+                [p, H, p, f, f, f, f, f, f, f, _, _, p, p, p],
+                [p, p, p, f, f, f, f, f, f, f, f, f, p, p, p],
+                [_, _, _, _, _, f, f, f, f, f, f, f, p, p, p],
+                [_, _, _, _, _, _, S1,_, _, S2,_, _, _, _, _]
+            ]
+        },
+        function () {
+            const _ = air();
+            const p = plain();
+            const f = fragile();
+            const H = hole();
+            const S1 = switched(true);
+            const S2 = switched(true);
+            const O = button(SOFT, null, [ S1, S2], null);
+            const U = split(vec3(14, 0, 6), vec3(12, 0, 9))
+            return [ // Level 28
+                [_, p, p, S1,S1,p, p, _, _, _, _, _, _, _, _],
+                [_, p, p, _, _, p, p, p, _, _, _, _, _, _, _],
+                [f, f, p, _, _, p, p, p, p, _, _, _, _, _, _],
+                [f, f, _, _, _, _, _, p, p, p, _, _, _, _, _],
+                [f, f, _, _, _, _, _, _, p, p, p, _, _, _, _],
+                [f, p, p, p, _, _, _, _, _, p, p, U, _, _, _],
+                [_, p, H, p, _, _, _, _, _, _, p, p, p, p, p],
+                [_, p, p, p, p, p, p, _, _, _, p, O, p, p, p],
+                [_, _, p, _, _, p, p, _, _, _, p, p, p, _, _],
+                [_, _, p, _, _, p, p, p, S2,S2,p, p, p, _, _]
+            ]
+        },
+        function () {
+            const _ = air();
+            const p = plain();
+            const H = hole();
+            const S1 = switched(true);
+            const S2 = switched(true);
+            const S3 = switched(true);
+            const S4 = switched(false);
+            const S5 = switched(false);
+            const S6 = switched(false);
+            const S7 = switched(false);
+            const S8 = switched(false);
+            const S9 = switched(false);
+            const O1 = button(SOFT, [ S4 ], [ S2 ], null);
+            const O2 = button(SOFT, [ S5 ], null, null);
+            const O3 = button(SOFT, [ S6 ], [ S2, S4, S1 ], null);
+            const X1 = button(HEAVY, [ S8 ], [ S3 ], null);
+            const X2 = button(HEAVY, [ S9 ], null, null);
+            const X3 = button(HEAVY, [ S7 ], null, null);
+            return [ // Level 29
+                [_, _, O1,S1,S1,p, _, _, _, p, S4,S4,X2,_, _],
+                [_, _, _, _, _, p, _, _, _, p, _, _, _, _, _],
+                [_, _, _, _, _, p, p, p, p, p, _, _, _, _, _],
+                [X1,S5,S5,p, p, p, p, p, p, p, p, p, S6,S6,X3],
+                [_, _, _, _, _, p, p, p, p, p, _, _, _, _, _],
+                [_, _, _, _, _, S9,p, _, _, p, _, _, _, _, _],
+                [_, _, _, _, _, S9,p, _, _, p, S2,S2,O2,_, _],
+                [p, p, p, _, _, p, p, _, _, p, _, _, _, _, _],
+                [p, H, p, S8,S8,p, _, _, _, p, _, _, _, _, _],
+                [p, p, p, S7,_, _, _, _, _, p, S3,S3,O3,_, _]
+            ]
+        },
+        function () {
+            const _ = air();
+            const p = plain();
+            const f = fragile();
+            const H = hole();
+            const S1 = switched(true);
+            const S2 = switched(false);
+            const S3 = switched(false);
+            const X1 = button(HEAVY, [ S1 ], null, null);
+            const X2 = button(HEAVY, [ S3 ], [ S1 ], null);
+            const X3 = button(HEAVY, null, null, [ S2 ]);
+            return [ // Level 30
+                [_, _, _, p, p, p, p, p, f, f, p, p, p, p, _],
+                [_, _, _, p, H, p, p, _, _, _, _, _, f, p, _],
+                [_, _, _, p, p, p, _, _, _, _, _, _, f, p, X2],
+                [_, _, _, _, _, _, _, f, p, p, S1,S1,p, p, p],
+                [_, _, p, _, _, _, _, f, f, _, _, _, _, _, p],
+                [_, X1,p, f, _, _, _, f, f, _, _, _, _, _, p],
+                [f, f, f, f, _, _, _, p, p, S3,_, _, S3,p, p],
+                [f, f, f, p, f, p, f, f, p, f, _, _, X3,p, S2],
+                [p, f, f, f, f, f, f, f, f, f, f, f, p, _, _],
+                [_, f, p, f, f, f, _, _, f, f, f, f, p, _, _]
+            ]
+        },
+        function () {
+            const _ = air();
+            const p = plain();
+            const f = fragile();
+            const H = hole();
+            const S1 = switched(true);
+            const S2 = switched(true);
+            const S3 = switched(true);
+            const S4 = switched(false);
+            const S5 = switched(false);
+            const S6 = switched(false);
+            const X1 = button(HEAVY, [ S6 ], [ S2 ], null);
+            const X2 = button(HEAVY, null, null, [ S5 ]);
+            const X3 = button(HEAVY, null, null, [ S4 ]);
+            const O1 = button(SOFT, null, [ S2, S3, S4, S5 ], null);
+            const O2 = button(SOFT, null, [ S2, S3, S4, S5 ], null);
+            return [ // Level 31
+                [_, _, _, _, _, _, _, _, _, _, _, p, p, p, S6],
+                [_, p, p, p, _, _, _, _, X2,_, _, p, H, p, S6],
+                [_, p, p, p, S2,S2,p, p, p, S5,S5,p, p, p, S6],
+                [_, p, p, p, _, _, p, p, p, _, _, _, p, _, _],
+                [_, f, f, f, _, _, O1,p, p, _, _, _, f, _, _],
+                [_, _, f, _, _, _, p, p, p, _, _, f, f, f, _],
+                [_, _, p, _, _, _, p, p, p, _, _, p, p, p, _],
+                [S1,p, p, p, S4,S4,p, O2,p, S3,S3,p, p, p, _],
+                [S1,p, X1,p, _, _, X3,_, _, _, _, p, p, p, _],
+                [S1,p, p, p, _, _, _, _, _, _, _, _, _, _, _]
+            ]
+        },
+        function () {
+            const _ = air();
+            const p = plain();
+            const H = hole();
+            const S1 = switched(true);
+            const S2 = switched(false);
+            const S3 = switched(false);
+            const S4 = switched(false);
+            const X1 = button(HEAVY, null, null, [ S4 ]);
+            const X2 = button(HEAVY, null, null, [ S3 ]);
+            const X3 = button(HEAVY, null, null, [ S1, S2 ]);
+            return [ // Level 32
+                [_, _, _, _, _, _, _, _, _, _, _, _, _, p, X3],
+                [_, _, _, p, p, S1,S1,p, p, _, _, _, p, p, p],
+                [_, _, p, p, p, S4,S4,p, p, _, _, p, X2,p, p],
+                [_, _, p, H, p, _, _, _, p, p, p, p, p, _, _],
+                [_, _, p, p, p, _, _, _, _, p, p, p, _, _, _],
+                [_, _, _, _, _, _, _, _, _, _, p, p, _, _, _],
+                [_, _, _, _, _, p, p, p, _, _, p, p, _, _, _],
+                [_, p, p, S2,S2,p, X1,p, _, _, p, p, _, _, _],
+                [_, p, p, S3,S3,p, p, p, p, p, p, p, _, _, _],
+                [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _]
+            ]
+        },
+        function () {
+            const _ = air();
+            const p = plain();
+            const H = hole();
+            const S1 = switched(true);
+            const S2 = switched(true);
+            const S3 = switched(false);
+            const X = button(HEAVY, [ S3 ], null, null);
+            const O1 = button(SOFT, null, [ S2 ], null);
+            const O2 = button(SOFT, null, [ S2 ], null);
+            const O3 = button(SOFT, null, [ S2 ], null);
+            const O4 = button(SOFT, null, [ S2 ], null);
+            const O5 = button(SOFT, null, [ S2 ], null);
+            const O6 = button(SOFT, null, [ S2 ], null);
+            const O7 = button(SOFT, null, [ S2 ], null);
+            const O8 = button(SOFT, null, [ S2 ], null);
+            const O9 = button(SOFT, null, [ S2 ], null);
+            const OA = button(SOFT, null, [ S2 ], null);
+            const OB = button(SOFT, null, [ S2 ], null);
+            const OC = button(SOFT, null, [ S2 ], null);
+            return [ // Level 33
+                [_, _, _, _, _, p, p, O2,p, p, p, _, _, _, _],
+                [_, _, _, _, _, p, p, p, p, p, p, S3,_, _, _],
+                [p, p, p, _, _, O1,p, p, O3,p, p, p, p, p, _],
+                [p, p, p, S1,S1,p, p, p, p, O4,O5,p, p, O9,_],
+                [_, _, _, _, _, p, p, OC,p, p, O6,p, p, p, _],
+                [_, _, _, _, _, p, p, p, p, p, p, O7,p, p, _],
+                [p, p, p, _, _, p, p, p, p, p, p, O8,p, p, p],
+                [p, H, p, S2,S2,p, OB,p, _, _, p, p, p, OA,X],
+                [p, p, p, _, _, p, p, p, _, _, _, p, p, p, p],
+                [p, p, p, _, _, _, _, _, _, _, _, _, p, p, p]
             ]
         },
     ]
