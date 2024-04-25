@@ -454,6 +454,7 @@ function get_after_movement_state() {
                 return [FALLING, BOTH_BLOCKS_FALL];
 
             case BUTTON:
+                play_sound(tile0.activation === SOFT ? SOUNDS.soft_button : SOUNDS.heavy_button);
                 activate_button(tile0);
                 return [IDLE, NO_BLOCK_FALL];
 
