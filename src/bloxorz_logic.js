@@ -1,13 +1,8 @@
-//TODO: passcodes ...
-//TODO: count moves
-//TODO: timer
-
 //TODO: record en el menú
 
 //TODO: add another line to slabs
 
-//TODO: Tutorial should explain camera rotation, zoom in/out and adaptative controls
-//TODO: Tutorial should explain K, L and Enter...
+//TODO: animation of falling to the map at the beginning
 
 // Block types
 
@@ -260,13 +255,16 @@ function hole() { return { type: HOLE }; }
 const SWITCHED_OFF = 0;
 const SWITCHED_ON = 1;
 
-const SWITCH_TIME = 0.2;
+const SWITCH_TIME = 0.15;
 
 function activate_button(button) {
+    let opened = false;
+    let closed = false;
     if (button.open) {
         button.open.forEach((tile) => {
             const pre_active = tile.active;
             tile.active = true;
+            opened |= !pre_active;
             animation_array.push({
                 type: SWITCHED_ON,
                 remaining_time: SWITCH_TIME,
@@ -280,6 +278,7 @@ function activate_button(button) {
     if (button.close) {
         button.close.forEach((tile) => {
             const pre_active = tile.active;
+            closed |= pre_active;
             tile.active = false;
             animation_array.push({
                 type: SWITCHED_OFF,
@@ -295,15 +294,26 @@ function activate_button(button) {
         button.toggle.forEach((tile) => {
             const pre_active = tile.active;
             tile.active = !tile.active;
+
+            closed |= tile.active;
+            opened |= !tile.active;
+
             animation_array.push({
                 type: tile.active ? SWITCHED_ON : SWITCHED_OFF,
                 remaining_time: SWITCH_TIME,
                 falling_speed: tile.active ? 50 : 0.0,
-                falling_distance: tile.active ? 5 : 0.0,
+                falling_distance: tile.active ? 2 : 0.0,
                 affected_objects: tile.affected_objects,
                 pre_active: pre_active,
             })
         });
+    }
+
+    if (opened) {
+        play_sound(SOUNDS.switched_off);
+    }
+    if (closed) {
+        play_sound(SOUNDS.switched_on);
     }
 }
 
@@ -315,6 +325,61 @@ const NO_BLOCK_FALL = -2;
 const FRAGILE_BLOCK_FALLS = -3;
 
 let last_pressing_tile = [null, null];
+
+function get_movement_sound_of_tile(tile) {
+    if (tile.type === SWITCHED && tile.active) {
+        return [SWITCHED, [SOUNDS.block_move_bridge_1,
+                           SOUNDS.block_move_bridge_2,
+                           SOUNDS.block_move_bridge_3]];
+    }
+
+    if (tile.type === BUTTON) {
+        return [BUTTON, null];
+    }
+
+    if (tile.type === PLAIN) {
+        // if (player.block_type === LONG) {
+        //     return [PLAIN, [SOUNDS.block_move_1,
+        //                     SOUNDS.block_move_2,
+        //                     SOUNDS.block_move_3]];
+        // }
+        // else {
+            return [PLAIN, [SOUNDS.block_move_cube_1,
+                            SOUNDS.block_move_cube_2]];
+        // }
+    }
+
+    if (tile.type === FRAGILE) {
+        return [FRAGILE, [SOUNDS.block_move_fragile_1,
+                        SOUNDS.block_move_fragile_2]];
+    }
+
+    return [null, null];
+}
+
+function movement_sound_two_tiles(tile0, tile1) {
+    const [t0, s0] = get_movement_sound_of_tile(tile0);
+    const [t1, s1] = get_movement_sound_of_tile(tile1);
+
+    if (t0 === BUTTON || t1 === BUTTON) {
+        return;
+    }
+
+    if (t0 === SWITCHED || (t1 !== SWITCHED && (t0 === FRAGILE || (t0 === PLAIN && t1 !== FRAGILE))))
+    {
+        play_one_sound_from_set(s0);
+    }
+    else if (s1 !== null) {
+        play_one_sound_from_set(s1);
+    }
+}
+
+function movement_sound_one_tile(tile) {
+    const [type, sounds] = get_movement_sound_of_tile(tile);
+    if (sounds !== null) {
+        play_one_sound_from_set(sounds);
+    }
+}
 
 function get_after_movement_state() {
 
@@ -342,8 +407,30 @@ function get_after_movement_state() {
     const tile1_out = !between(0, i1, LEVEL_MATRIX.H - 1) || !between(0, j1, LEVEL_MATRIX.W - 1);
 
     if (tile0_out && tile1_out) { return [FALLING, BOTH_BLOCKS_FALL]; }
-    else if (tile0_out) { return [FALLING, 0]; }
-    else if (tile1_out) { return [FALLING, 1]; }
+    else if (tile0_out) {
+        const tile1 = game_state.matrix[i1][j1];
+        if (player.block_type === LONG && tile1.type === BUTTON && tile1.activation === SOFT)
+        {
+            play_sound(SOUNDS.soft_button);
+            activate_button(tile1);
+        }
+        else {
+            movement_sound_one_tile(tile1);
+        }
+        return [FALLING, 0];
+    }
+    else if (tile1_out) {
+        const tile0 = game_state.matrix[i0][j0];
+        if (player.block_type === LONG && tile0.type === BUTTON && tile0.activation === SOFT)
+        {
+            play_sound(SOUNDS.soft_button);
+            activate_button(tile0);
+        }
+        else {
+            movement_sound_one_tile(tile0);
+        }
+        return [FALLING, 1];
+    }
 
     const tile0 = game_state.matrix[i0][j0];
     const tile1 = game_state.matrix[i1][j1];
@@ -351,6 +438,7 @@ function get_after_movement_state() {
     // --- First consider staying at one tile ----------------------------------
 
     if (is_block_standing(player)) {
+        movement_sound_one_tile(tile0);
         switch (tile0.type) {
 
             case PLAIN:
@@ -379,7 +467,9 @@ function get_after_movement_state() {
             case SWITCHED:
                 return [tile0.active ? IDLE : FALLING, BOTH_BLOCKS_FALL];
         }
-    }    
+    }
+
+    movement_sound_two_tiles(tile0, tile1);
 
     // --- Check if player pressed a soft button -------------------------------
 
@@ -387,6 +477,7 @@ function get_after_movement_state() {
         tile0.type === BUTTON && tile0.activation === SOFT &&
         last_pressing_tile[0] !== player.position[0])
     {
+        play_sound(SOUNDS.soft_button);
         activate_button(tile0);
         last_pressing_tile[0] = player.position[0];
     }
@@ -398,6 +489,7 @@ function get_after_movement_state() {
         tile1.type === BUTTON && tile1.activation === SOFT &&
         last_pressing_tile[1] !== player.position[1])
     {
+        play_sound(SOUNDS.soft_button);
         activate_button(tile1);
         last_pressing_tile[1] = player.position[1];
     }

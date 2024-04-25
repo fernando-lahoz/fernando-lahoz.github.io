@@ -1,6 +1,13 @@
 // Variable to store the WebGL rendering context
 var gl;
 
+// Variables para los bufferes
+var vertex_buffer;
+var color_buffer;
+var textcoords_buffer;
+var hide_level_buffer;
+
+
 var model = new mat4();   		// create a model matrix and set it to the identity matrix
 var view = new mat4();   		// create a view matrix and set it to the identity matrix
 var projection = new mat4();	// create a projection matrix and set it to the identity matrix
@@ -198,6 +205,7 @@ const CANVAS_HEIGHT = screen.height;
 function init() {
 
     init_menu();
+    init_sound();
 
     // Set up a WebGL Rendering Context in an HTML5 Canvas
     canvas = document.getElementById("gl-canvas");
@@ -210,6 +218,12 @@ function init() {
     if (!gl) {
         alert("WebGL isn't available");
     }
+
+    //Genera los bufferes
+    vertex_buffer = gl.createBuffer();
+    color_buffer = gl.createBuffer();
+    textcoords_buffer = gl.createBuffer();
+    hide_level_buffer = gl.createBuffer();
 
     //  Configure WebGL
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
@@ -272,13 +286,19 @@ const APP_STATES = {
     PLAYING: 3,
     INGAME_MENU: 4,
     END_SCREEN: 5,
+    INGAME_INSTRUCTIONS: 6,
 };
 
 let current_app_state = APP_STATES.MAIN_MENU;
 
+let is_menu_song_playing = false; 
 function set_main_menu_state() {
     const saved_state = restore_game_state();
-    console.log(saved_state)
+
+    if (!is_sound_playing(SOUNDS.menu_song)) {
+        play_sound(SOUNDS.menu_song);
+    }
+
     if (saved_state !== null) {
         game_state = saved_state;
         show_main_menu(true);
@@ -296,6 +316,8 @@ function set_instructions_state() {
 const LEVEL_SCREEN_TIME = 2;
 let remaining_level_screen_time;
 function set_level_screen_state() {
+    stop_sound(SOUNDS.menu_song);
+    play_sound(SOUNDS.level_screen);
     show_level_screen(game_state.level);
     
     remaining_level_screen_time = LEVEL_SCREEN_TIME;
@@ -308,9 +330,16 @@ function set_playing_state() {
     }
     else {
         set_level(game_state.level);
+        play_sound(SOUNDS.ambience);
+        reset_camera();
         start_timer();
         show_in_game_panels(game_state);
         show_menu_button();
+
+        if (game_state.level === 1) {
+            set_anotation_text(REMINDER_TEXT[0]);
+            show_anotation();
+        }
     }    
 } 
 
@@ -321,7 +350,12 @@ function set_ingame_menu_state() {
 
 function set_end_screen_state() {
     remaining_level_screen_time = LEVEL_SCREEN_TIME;
-    //...
+    play_sound(SOUNDS.level_screen);
+    show_end_screen();
+}
+
+function set_ingame_instructions_state() {
+    show_ingame_instructions();
 }
 
 function set_app_state(state) {
@@ -332,6 +366,7 @@ function set_app_state(state) {
         case APP_STATES.PLAYING: set_playing_state(); break; 
         case APP_STATES.INGAME_MENU: set_ingame_menu_state(); break;
         case APP_STATES.END_SCREEN: set_end_screen_state(); break;
+        case APP_STATES.INGAME_INSTRUCTIONS: set_ingame_instructions_state(); break;
     }
     current_app_state = state;
 }
@@ -365,6 +400,7 @@ function update_ingame_menu_state() {
 function update_end_screen_state() {
     remaining_level_screen_time -= delta_time;
     if (remaining_level_screen_time <= 0) {
+        hide_end_screen();
         set_app_state(APP_STATES.MAIN_MENU);
     }
 }
@@ -425,7 +461,7 @@ const MOVEMENT_ANGULAR_SPEED = 90.0 / MOVEMENT_COOLDOWN; // degree / s
 
 const FALLING_DURATION = [0.2,0.5];
 
-const WINNING_DURATION = 0.5;
+const WINNING_DURATION = 0.7;
 const GRAVITY = 100;
 
 function apply_action(direction, dx, dz) {
@@ -485,6 +521,7 @@ function moving_state() {
         switch (player.state) {
             case IDLE: break;
             case WINNING:
+                play_sound(SOUNDS.victory);
                 player.animation = {
                     remaining_time: WINNING_DURATION,
                     falling_speed: 0.0,
@@ -530,10 +567,11 @@ function moving_state() {
                 }
                 break;
             case SPLITING:
+                play_sound(SOUNDS.split);
                 player.animation = {
                     remaining_time: MOVEMENT_COOLDOWN,
                     falling_speed: 0.0,
-                    falling_distance: -1.0
+                    falling_distance: -2.5
                 }
                 break;
         }        
@@ -548,11 +586,15 @@ function winning_state() {
             stop_timer();
             hide_in_game_panels();
             remove_game_state();
+            stop_sound(SOUNDS.ambience);
+            //play_sound(SOUNDS.flush_map);
             set_app_state(APP_STATES.END_SCREEN);
         } else {
             set_level(game_state.level + 1);
             save_game_state();
             hide_in_game_panels();
+            stop_sound(SOUNDS.ambience);
+            //play_sound(SOUNDS.flush_map);
             set_app_state(APP_STATES.LEVEL_SCREEN);
         }
     }
@@ -587,6 +629,8 @@ function spliting_state() {
     player.animation.remaining_time -= delta_time;
     if (player.animation.remaining_time <= 0) {
         player.state = IDLE;
+        play_sound(SOUNDS.block_move_cube_1);
+        play_sound(SOUNDS.block_move_cube_2);
     }
 }
 
@@ -1066,6 +1110,7 @@ const GAME_EVENTS = {
     main_menu: {
         start_new_game:         APP_STATES.MAIN_MENU * 100 + 0,
         continue:               APP_STATES.MAIN_MENU * 100 + 1,
+        toggle_sound:           APP_STATES.MAIN_MENU * 100 + 2,
     },
 
     instructions: {
@@ -1099,6 +1144,12 @@ function main_menu_handle_event(event) {
             hide_main_menu();
             set_app_state(APP_STATES.LEVEL_SCREEN);
             break;
+        case GAME_EVENTS.main_menu.toggle_sound:
+            if (!is_menu_song_playing) {
+                is_menu_song_playing = true;
+                play_sound(SOUNDS.menu_song);
+            }
+            break;
     }
 }
 
@@ -1112,13 +1163,28 @@ function instructions_handle_event(event) {
             break;
         case GAME_EVENTS.instructions.start:
             hide_instructions();
-            //if (start_new_game // resume)
             reset_game_state();
             set_app_state(APP_STATES.LEVEL_SCREEN);
             break;
         case GAME_EVENTS.instructions.back_to_menu:
             hide_instructions();
             set_app_state(APP_STATES.MAIN_MENU);
+            break;
+    }
+}
+
+function ingame_instructions_handle_event(event) {
+    switch (event) {
+        case GAME_EVENTS.instructions.next:
+            next_ingame_instructions_page();
+            break;
+        case GAME_EVENTS.instructions.prev:
+            prev_ingame_instructions_page();
+            break;
+        case GAME_EVENTS.instructions.start:
+            hide_ingame_instructions();
+            show_in_game_panels(game_state);
+            set_app_state(APP_STATES.INGAME_MENU);
             break;
     }
 }
@@ -1158,6 +1224,7 @@ function ingame_menu_handle_event(event) {
             save_game_state();
             hide_in_game_menu();
             hide_in_game_panels();
+            stop_sound(SOUNDS.ambience);
             set_app_state(APP_STATES.MAIN_MENU);
             break;
         case GAME_EVENTS.ingame_menu.return_to_game:
@@ -1165,9 +1232,9 @@ function ingame_menu_handle_event(event) {
             set_app_state(APP_STATES.PLAYING);
             break;
         case GAME_EVENTS.ingame_menu.show_instructions:
-            //hide_in_game_menu();
-            //hide_in_game_panels();
-            //set_app_state(APP_STATES.INSTRUCTIONS); -> must be another state....
+            hide_in_game_menu();
+            hide_in_game_panels();
+            set_app_state(APP_STATES.INGAME_INSTRUCTIONS);
             break;
     }
 }
@@ -1187,6 +1254,7 @@ function process_events() {
             case APP_STATES.PLAYING: playing_handle_event(event); break; 
             case APP_STATES.INGAME_MENU: ingame_menu_handle_event(event); break;
             case APP_STATES.END_SCREEN: end_screen_handle_event(event); break;
+            case APP_STATES.INGAME_INSTRUCTIONS: ingame_instructions_handle_event(event); break;
         }        
     }
 }
@@ -1231,6 +1299,7 @@ function render() {
     draw_app_state();
     
     requestAnimationFrame(render);
+
 }
 
 //----------------------------------------------------------------------------
@@ -1271,14 +1340,14 @@ function set_uniforms(program_info, uniforms) {
 function set_buffers_and_attributes(program_info, points_array, colors_array, textcoords_array, hide_level_array) {
     // Load the data into GPU data buffers
     // Vertices
-    var vertex_buffer = gl.createBuffer();
+    //var vertex_buffer = gl.createBuffer();
     gl.bindBuffer( gl.ARRAY_BUFFER, vertex_buffer );
     gl.bufferData( gl.ARRAY_BUFFER,  flatten(points_array), gl.STATIC_DRAW );
     gl.vertexAttribPointer( program_info.attrib_locations.vPosition, 4, gl.FLOAT, gl.FALSE, 0, 0 );
     gl.enableVertexAttribArray( program_info.attrib_locations.vPosition );
 
     // Colors
-    var color_buffer = gl.createBuffer();
+    //var color_buffer = gl.createBuffer();
     gl.bindBuffer( gl.ARRAY_BUFFER, color_buffer );
     gl.bufferData( gl.ARRAY_BUFFER,  flatten(colors_array), gl.STATIC_DRAW );
     gl.vertexAttribPointer( program_info.attrib_locations.vColor, 4, gl.FLOAT, gl.FALSE, 0, 0 );
@@ -1286,7 +1355,7 @@ function set_buffers_and_attributes(program_info, points_array, colors_array, te
 
     // (u, v)
     if (program_info === tile_program_info || program_info === cube_program_info) {
-        var textcoords_buffer = gl.createBuffer();
+        //var textcoords_buffer = gl.createBuffer();
         gl.bindBuffer( gl.ARRAY_BUFFER, textcoords_buffer );
         gl.bufferData(gl.ARRAY_BUFFER, flatten(textcoords_array), gl.STATIC_DRAW );
         gl.vertexAttribPointer( program_info.attrib_locations.vTextcoords, 2, gl.FLOAT, gl.FALSE, 0, 0 );
@@ -1294,7 +1363,7 @@ function set_buffers_and_attributes(program_info, points_array, colors_array, te
     }
 
     if (program_info === cube_program_info) {
-        var hide_level_buffer = gl.createBuffer();
+        //var hide_level_buffer = gl.createBuffer();
         gl.bindBuffer( gl.ARRAY_BUFFER, hide_level_buffer );
         gl.bufferData(gl.ARRAY_BUFFER, flatten(hide_level_array), gl.STATIC_DRAW );
         gl.vertexAttribPointer( program_info.attrib_locations.vHideLevel, 1, gl.FLOAT, gl.FALSE, 0, 0 );

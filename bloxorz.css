@@ -293,6 +293,16 @@ button {
 
 .options-padding{
     --r: 1280 / 720;
+    margin-right: min(1vw, 1vh*(var(--r)));
+}
+
+.left-padding{
+    --r: 1280 / 720;
+    margin-left: min(2vw, 2vh*(var(--r)));
+}
+
+.right-padding{
+    --r: 1280 / 720;
     margin-right: min(2vw, 2vh*(var(--r)));
 }
 
@@ -332,8 +342,49 @@ button {
 .tutorial-container{
     display: flex;
     flex-direction: row;
-    align-items: center;
-    justify-content: space-evenly;
+    align-items: flex-start;
+    justify-content: space-between;
     height: 40%;
-    align-self: center;
+    width: 100%;
+    position: relative;
+    top: 25%;
+}
+
+.digit-container{
+    --r: 1280 / 720;
+    display: flex;
+    width: min(1em, 1em*(var(--r)));
+    justify-content: center;
+}
+
+.digit-sep-container{
+    display: flex;
+}
+
+.container{
+    display: flex;
+    width : -moz-fit-content;
+    width : fit-content; 
+}
+
+.reminder-text{
+    --r: 1280 / 720;
+    font-size: min(1.5vw, 1.5vh*(var(--r)));
+    font-family: 'Bloxorz Text', sans-serif;
+
+    text-align: left;
+    font-weight: normal;
+
+    color: white;
+    text-shadow:
+        0 0 min(0.8vw, 0.8vh*(var(--r))) black,
+        0 0 min(0.8vw, 0.8vh*(var(--r))) black
+}
+
+.reminder-container{
+    display: flex;
+    width : -moz-fit-content;
+    width : fit-content; 
+    position : absolute; 
+    bottom : 10%;
 }
