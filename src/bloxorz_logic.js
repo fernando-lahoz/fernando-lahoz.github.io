@@ -1148,7 +1148,7 @@ const LEVEL_MATRIX = {
                 [p, H, p, f, f, f, f, f, f, f, _, _, p, p, p],
                 [p, p, p, f, f, f, f, f, f, f, f, f, p, p, p],
                 [_, _, _, _, _, f, f, f, f, f, f, f, p, p, p],
-                [_, _, _, _, _, _, S1,_, _, S2,_, _, _, _, _]
+                [_, _, _, _, _, _, S1,p, p, S2,_, _, _, _, _]
             ]
         },
         function () {
