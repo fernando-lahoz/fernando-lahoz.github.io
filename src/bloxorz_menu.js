@@ -531,6 +531,7 @@ function show_ingame_instructions() {
     game_window.appendChild(TUTORIAL_PAGE);
     game_window.appendChild(TUTORIAL_INFO);
     TUTORIAL_PAGE_R1.removeChild(PREV_BUTTON3);
+    TUTORIAL_IMAGE.src = `assets/images/tutorial-${tutorial_page}.png`;
 }
 
 function next_ingame_instructions_page() {
@@ -549,6 +550,7 @@ function next_ingame_instructions_page() {
         game_window.appendChild(TUTORIAL_LAST_PAGE_INGAME);
     }
     TUTORIAL_TEXT.innerText = TUTORIAL_PAGE_TEXT[tutorial_page - 1];
+    TUTORIAL_IMAGE.src = `assets/images/tutorial-${tutorial_page}.png`;
 }
 
 function prev_ingame_instructions_page() {
@@ -564,6 +566,7 @@ function prev_ingame_instructions_page() {
         TUTORIAL_PAGE_R1.removeChild(PREV_BUTTON3);
     }
     TUTORIAL_TEXT.innerText = TUTORIAL_PAGE_TEXT[tutorial_page - 1];
+    TUTORIAL_IMAGE.src = `assets/images/tutorial-${tutorial_page}.png`;
 }
 
 function hide_ingame_instructions() {
