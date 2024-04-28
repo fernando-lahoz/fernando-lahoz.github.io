@@ -20,6 +20,19 @@ var rot_change = 0.5;
 var program;
 var tile_program;
 var cube_program;
+var hole_program;
+var sphere_program;
+
+let not_chosen_texture = {
+    texture: null,
+    unit: null,
+    unit_num: 0,
+};
+
+let block_texture = {
+    texture: null,
+    unit: null,
+};
 
 var program_info = {
     program,
@@ -39,7 +52,19 @@ var cube_program_info = {
     attrib_locations: {},
 }
 
-const TILES_OFFSET = 3;
+var hole_program_info = {
+    hole_program,
+    uniform_locations: {},
+    attrib_locations: {},
+}
+
+var sphere_program_info = {
+    sphere_program,
+    uniform_locations: {},
+    attrib_locations: {},
+}
+
+const TILES_OFFSET = 4;
 
 var objects_to_draw = [
     {
@@ -50,6 +75,8 @@ var objects_to_draw = [
         uniforms: {
             u_color_mult: [1.0, 1.0, 1.0, 1.0],
             u_model: new mat4(),
+            u_hide_level: { level: -1000 },
+            texture: block_texture,
         },
         prim_type: "triangles",
 
@@ -63,6 +90,8 @@ var objects_to_draw = [
         uniforms: {
             u_color_mult: [1.0, 1.0, 1.0, 1.0],
             u_model: new mat4(),
+            u_hide_level: { level: -1000 },
+            texture: not_chosen_texture,
         },
         prim_type: "triangles",
 
@@ -76,11 +105,24 @@ var objects_to_draw = [
         uniforms: {
             u_color_mult: [1.0, 1.0, 1.0, 1.0],
             u_model: new mat4(),
+            u_hide_level: { level: -1000 },
+            texture: block_texture,
         },
         prim_type: "triangles",
 
         rotation_matrix: new mat4(),
-    }
+    },
+    {
+		program_info: sphere_program_info,
+		points_array: points_sphere,
+		uniforms: {
+			u_color_mult: [0.75, 0.156, 0, 1],
+			u_model: new mat4(),
+            fade: 16,
+		},
+		prim_type: "triangles",
+        radius: 30,
+	},
 ];
 
 //----------------------------------------------------------------------------
@@ -120,6 +162,9 @@ const camera = {
     alpha: BASE_CAMERA.alpha,
     betha: BASE_CAMERA.betha,
 
+    alpha_speed: 0,
+    betha_speed: 0,
+
     fov: BASE_CAMERA.fov,
 };
 
@@ -153,6 +198,12 @@ function from_uniform(v4) {
 
 const ALPHA_ANGLE_SPEED = 90;
 const BETHA_ANGLE_SPEED = 90;
+const ANGLE_ACCELERATION = 110;
+
+const ANGLE_DECCELERATION = 20;
+
+const ANGLE_SCALE_FACTOR = 0.85;
+const ANGLR_SPEED_THRESHOLD = 0.01;
 
 const FOV_SPEED = 20;
 
@@ -167,23 +218,63 @@ function update_camera_state() {
         if (camera.fov < 20) camera.fov = 20;
     }
 
+    let camera_in_alpha_action = camera_actions.right || camera_actions.left;
+    let camera_in_betha_action = camera_actions.up || camera_actions.down;
+
     if (camera_actions.left)  { 
-        camera.alpha += ALPHA_ANGLE_SPEED * delta_time;
+        //camera.alpha += ALPHA_ANGLE_SPEED * delta_time;
+        camera.alpha_speed += ANGLE_ACCELERATION * delta_time;
+        if(camera.alpha_speed > ALPHA_ANGLE_SPEED){
+            camera.alpha_speed = ALPHA_ANGLE_SPEED;
+        }
+
+        camera_in_action = true;
     }
+
     if (camera_actions.right) { 
-        camera.alpha -= ALPHA_ANGLE_SPEED * delta_time;
+        //camera.alpha -= ALPHA_ANGLE_SPEED * delta_time;
+        camera.alpha_speed -= ANGLE_ACCELERATION * delta_time;
+        if(camera.alpha_speed < -ALPHA_ANGLE_SPEED){
+            camera.alpha_speed = -ALPHA_ANGLE_SPEED;
+        }
+        camera_in_action = true;
     }
+
     if (camera_actions.up) {
-        camera.betha += BETHA_ANGLE_SPEED * delta_time; 
-        if (camera.betha > 70) camera.betha = 70;
+        //camera.betha += BETHA_ANGLE_SPEED * delta_time; 
+        camera.betha_speed += ANGLE_ACCELERATION * delta_time;
+        if(camera.betha_speed > BETHA_ANGLE_SPEED){
+            camera.betha_speed = BETHA_ANGLE_SPEED;
+        }
+        camera_in_action = true;
     }
+
     if (camera_actions.down) { 
-        camera.betha -= BETHA_ANGLE_SPEED * delta_time;
-        if (camera.betha < 0) camera.betha = 0;
+        //camera.betha -= BETHA_ANGLE_SPEED * delta_time;
+        camera.betha_speed -= ANGLE_ACCELERATION * delta_time;
+        if(camera.betha_speed < -BETHA_ANGLE_SPEED){
+            camera.betha_speed = -BETHA_ANGLE_SPEED;
+        }
+        camera_in_action = true;
+    } 
+
+    if(!camera_in_alpha_action){
+        camera.alpha_speed *= Math.pow(ANGLE_SCALE_FACTOR, delta_time*ANGLE_DECCELERATION);
+        if (Math.abs(camera.alpha_speed) < ANGLR_SPEED_THRESHOLD) {camera.alpha_speed = 0};
     }
+
+    if(!camera_in_betha_action){
+        camera.betha_speed *= Math.pow(ANGLE_SCALE_FACTOR, delta_time*ANGLE_DECCELERATION);
+        if (Math.abs(camera.betha_speed) < ANGLR_SPEED_THRESHOLD) {camera.betha_speed = 0};
+    }
+
+    camera.alpha += camera.alpha_speed * delta_time;
+    camera.betha += camera.betha_speed * delta_time;
 
     if (camera.alpha > 360) { camera.alpha -= 360; }
     if (camera.alpha < 0) { camera.alpha += 360; }
+    if (camera.betha > 70) { camera.betha = 70; }
+    if (camera.betha < 0) { camera.betha = 0; }
 
     const u = subtract(BASE_CAMERA.eye, BASE_CAMERA.at);
     const rotated_alpha = from_uniform(mult(rotate(camera.alpha, vec3(0, 1, 0)), to_uniform(u, 0)));
@@ -193,6 +284,53 @@ function update_camera_state() {
     
     camera.eye = add(BASE_CAMERA.at, rotated_betha);
 }
+
+//--------------------
+
+let textures_array = [];
+
+function load_texture(tex_obj, url) {
+    const unit_num = textures_array.length;
+    const unit = gl[`TEXTURE${unit_num}`];
+
+    const texture = gl.createTexture();
+    gl.activeTexture(unit);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([100, 100, 100, 255]));
+
+    textures_array.push(texture);
+
+
+    const image = new Image();
+    image.onload = () => {
+        gl.activeTexture(unit);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    
+        function isPowerOf2(value) {
+            return (value & (value - 1)) === 0;
+        }
+
+        // WebGL1 has different requirements for power of 2 images
+        // vs. non power of 2 images so check if the image is a
+        // power of 2 in both dimensions.
+        if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
+            // Yes, it's a power of 2. Generate mips.
+            gl.generateMipmap(gl.TEXTURE_2D);
+        } else {
+            // No, it's not a power of 2. Turn off mips and set
+            // wrapping to clamp to edge
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        }
+    };
+    image.src = url;
+  
+    tex_obj.texture = texture;
+    tex_obj.unit = unit;
+    tex_obj.unit_num = unit_num;
+  }
 
 //----------------------------------------------------------------------------
 // Initialization function
@@ -209,6 +347,8 @@ function init() {
 
     // Set up a WebGL Rendering Context in an HTML5 Canvas
     canvas = document.getElementById("gl-canvas");
+
+    canvas.toDataURL("image/png")
 
     const aspect_ratio = 1920 / 1080;
     canvas.width = CANVAS_HEIGHT * aspect_ratio;
@@ -235,7 +375,9 @@ function init() {
     // Load shaders and initialize attribute buffers
     program = initShaders(gl, "vertex-shader", "fragment-shader");
     cube_program = initShaders(gl, "block-vertex-shader", "block-fragment-shader");
+    hole_program = initShaders(gl, "block-vertex-shader", "hole-fragment-shader");
     tile_program = initShaders(gl, "tile-vertex-shader", "tile-fragment-shader");
+    sphere_program = initShaders(gl, "sphere-vertex-shader", "sphere-fragment-shader");
 
     // Save the attribute and uniform locations
     program_info.uniform_locations.model = gl.getUniformLocation(program, "model");
@@ -262,9 +404,43 @@ function init() {
     cube_program_info.attrib_locations.vPosition = gl.getAttribLocation(cube_program, "vPosition");
     cube_program_info.attrib_locations.vColor = gl.getAttribLocation(cube_program, "vColor");
     cube_program_info.attrib_locations.vTextcoords = gl.getAttribLocation(cube_program, "vTextcoords");
-    cube_program_info.attrib_locations.vHideLevel = gl.getAttribLocation(cube_program, "vHideLevel");
+    cube_program_info.uniform_locations.hideLevel = gl.getUniformLocation(cube_program, "hideLevel");
     cube_program_info.program = cube_program;
+
+    cube_program_info.texture_location = gl.getUniformLocation(cube_program, "uTexture");
+
+
+    hole_program_info.uniform_locations.model = gl.getUniformLocation(hole_program, "model");
+    hole_program_info.uniform_locations.view = gl.getUniformLocation(hole_program, "view");
+    hole_program_info.uniform_locations.projection = gl.getUniformLocation(hole_program, "projection");
+    hole_program_info.uniform_locations.colorMult = gl.getUniformLocation(hole_program, "colorMult");
+    hole_program_info.attrib_locations.vPosition = gl.getAttribLocation(hole_program, "vPosition");
+    hole_program_info.attrib_locations.vColor = gl.getAttribLocation(hole_program, "vColor");
+    hole_program_info.attrib_locations.vTextcoords = gl.getAttribLocation(hole_program, "vTextcoords");
+    hole_program_info.uniform_locations.hideLevel = gl.getUniformLocation(hole_program, "hideLevel");
+    hole_program_info.program = hole_program;
+
+
+    // Background sphere
+    sphere_program_info.uniform_locations.model = gl.getUniformLocation(sphere_program, "model");
+    sphere_program_info.uniform_locations.view = gl.getUniformLocation(sphere_program, "view");
+    sphere_program_info.uniform_locations.colorMult = gl.getUniformLocation(sphere_program, "colorMult");
+    sphere_program_info.uniform_locations.projection = gl.getUniformLocation(sphere_program, "projection");
+    sphere_program_info.uniform_locations.fade = gl.getUniformLocation(sphere_program, "fadeValue");
+    sphere_program_info.attrib_locations.vPosition = gl.getAttribLocation(sphere_program, "vPosition");
+    sphere_program_info.program = sphere_program;
     
+    // Create a texture.
+    load_texture(block_texture, "./assets/images/rusty-block.jpg");
+    load_texture(not_chosen_texture, "./assets/images/light-grey-block.jpg");
+
+    // Flip image pixels into the bottom-to-top order that WebGL expects.
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+    const sphere = objects_to_draw[3];
+    sphere.uniforms.u_model = scale(sphere.radius * 2, sphere.radius * 2, sphere.radius * 2);
+    translate_object(sphere, vec3(7.0, 0.0, 4.5))
+
     // Set up viewport 
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
 
@@ -332,6 +508,7 @@ function set_playing_state() {
         set_level(game_state.level);
         play_sound(SOUNDS.ambience);
         reset_camera();
+        fade_counter = 0;
         start_timer();
         show_in_game_panels(game_state);
         show_menu_button();
@@ -425,6 +602,7 @@ function visualize_app_state() {
             visualize_game_state();
             visualize_tile_activation();
             update_hide_level();
+            update_background_fade();
             break;
     }
 }
@@ -442,6 +620,9 @@ function draw_app_state() {
                 draw_object(objects_to_draw[0]);
                 draw_object(objects_to_draw[1]);
             }
+
+            // Background sphere
+            draw_object(objects_to_draw[3]);
         
             for (let i = TILES_OFFSET; i < objects_to_draw.length; i++) {
                 const object = objects_to_draw[i];
@@ -777,8 +958,11 @@ function visualize_game_state() {
     if (previsualization_events.change_chosen_block) {
         previsualization_events.change_chosen_block = false;
         
-        objects_to_draw[player.chosen_block].colors_array = color_cube;
-        objects_to_draw[1 - player.chosen_block].colors_array = color_cube_not_chosen;
+        // objects_to_draw[player.chosen_block].colors_array = color_cube;
+        // objects_to_draw[1 - player.chosen_block].colors_array = color_cube_not_chosen;
+
+        objects_to_draw[player.chosen_block].uniforms.texture = block_texture;
+        objects_to_draw[1 - player.chosen_block].uniforms.texture = not_chosen_texture;
     }
 
     switch (player.state) {
@@ -1006,17 +1190,17 @@ function rotate_object(object, angle, axis) {
 }
 
 function clear_floor() {
-    objects_to_draw.length = 3;
+    objects_to_draw.length = TILES_OFFSET;
 }
 
 let tile_objects_matrix = null;
 
-function generate_tile(program,points, color, x, y, z) {
+function generate_tile(program, points, color, textcoords, x, y, z) {
     const tile = {
         program_info: program,
         points_array: points, 
         colors_array: color,
-        textcoords_array: cube_textcoords,
+        textcoords_array: textcoords,
         uniforms: {
             u_color_mult: [1.0, 1.0, 1.0, 1.0],
             u_model: translate(x, y, z)
@@ -1044,30 +1228,30 @@ function generate_floor() {
             case AIR:
                 break;
             case PLAIN:
-                objects_to_draw.push(generate_tile(tile_program_info, points_tile, color_tile_plain, j, -1, i));
+                objects_to_draw.push(generate_tile(tile_program_info, points_tile, color_tile_plain, tile_textcoords, j, -1, i));
                 break;
             case FRAGILE:
-                objects_to_draw.push(generate_tile(tile_program_info, points_tile, color_tile_fragile, j, -1, i));
+                objects_to_draw.push(generate_tile(tile_program_info, points_tile, color_tile_fragile, tile_textcoords, j, -1, i));
                 break;
             case BUTTON:
                 const [points_button, color_button] = tile.activation === HEAVY ? [points_heavybutton, color_heavybutton] : [points_softbutton, color_softbutton];
-                objects_to_draw.push(generate_tile(program_info, points_button, color_button, j, 0, i));
-                objects_to_draw.push(generate_tile(tile_program_info, points_tile, color_tile_plain, j, -1, i));
+                objects_to_draw.push(generate_tile(program_info, points_button, color_button, undefined, j, 0, i));
+                objects_to_draw.push(generate_tile(tile_program_info, points_tile, color_tile_plain, tile_textcoords, j, -1, i));
                 break;
             case SPLIT:
-                objects_to_draw.push(generate_tile(program_info, points_split, color_split, j, 0, i));
-                objects_to_draw.push(generate_tile(tile_program_info, points_tile, color_tile_plain, j, -1, i));
+                objects_to_draw.push(generate_tile(program_info, points_split, color_split, undefined, j, 0, i));
+                objects_to_draw.push(generate_tile(tile_program_info, points_tile, color_tile_plain, tile_textcoords, j, -1, i));
                 break;
             case SWITCHED:
-                const object = generate_tile(tile_program_info, points_tile, color_tile_switched, j, -1, i);
+                const object = generate_tile(tile_program_info, points_tile, color_tile_switched, tile_textcoords, j, -1, i);
                 object.hide = !tile.active;
                 if (!tile.affected_objects) { tile.affected_objects = [ object ]; }
                 else { tile.affected_objects.push(object); }
                 objects_to_draw.push(object);
                 break;
             case HOLE:
-                hole_object = generate_tile(cube_program_info, points_hole, color_hole, j, -1, i);
-                hole_object.hide_level_array = cube_hide_level;
+                hole_object = generate_tile(hole_program_info, points_hole, color_hole, tile_textcoords, j, -1, i);
+                hole_object.uniforms.u_hide_level = cube_hide_level;
                 objects_to_draw.push(hole_object);
                 break;
         }
@@ -1207,6 +1391,7 @@ function playing_handle_event(event) {
             if (player.block_type === SHORT && player.state === IDLE) {
                 player.chosen_block = 1 - player.chosen_block; // Toggle between 1 and 0
                 previsualization_events.change_chosen_block = true; 
+                play_sound(SOUNDS.split)
             }
             break;
         case GAME_EVENTS.playing.reset_camera:
@@ -1268,7 +1453,7 @@ function draw_object(object) {
     gl.useProgram(object.program_info.program);
 
     // Setup buffers and attributes
-    set_buffers_and_attributes(object.program_info, object.points_array, object.colors_array, object.textcoords_array, object.hide_level_array);
+    set_buffers_and_attributes(object.program_info, object.points_array, object.colors_array, object.textcoords_array);
 
     // Set the uniforms
     set_uniforms(object.program_info, object.uniforms);
@@ -1335,9 +1520,23 @@ function set_uniforms(program_info, uniforms) {
 
     var view = lookAt(camera.eye, camera.at, camera.up);
     gl.uniformMatrix4fv(program_info.uniform_locations.view, gl.FALSE, view); // copy view to uniform value in shader
+
+    //Hide Level
+    if (program_info.uniform_locations.hideLevel) {
+        gl.uniform1f(program_info.uniform_locations.hideLevel, uniforms.u_hide_level.level);
+    }
+
+    if (program_info.uniform_locations.fade) {
+        gl.uniform1f(program_info.uniform_locations.fade, uniforms.fade);
+    }
+
+    if (program_info.texture_location) {
+        gl.activeTexture(uniforms.texture.unit);
+        gl.uniform1i(program_info.texture_location, uniforms.texture.unit_num);
+    }
 }
 
-function set_buffers_and_attributes(program_info, points_array, colors_array, textcoords_array, hide_level_array) {
+function set_buffers_and_attributes(program_info, points_array, colors_array, textcoords_array) {
     // Load the data into GPU data buffers
     // Vertices
     //var vertex_buffer = gl.createBuffer();
@@ -1348,38 +1547,32 @@ function set_buffers_and_attributes(program_info, points_array, colors_array, te
 
     // Colors
     //var color_buffer = gl.createBuffer();
-    gl.bindBuffer( gl.ARRAY_BUFFER, color_buffer );
-    gl.bufferData( gl.ARRAY_BUFFER,  flatten(colors_array), gl.STATIC_DRAW );
-    gl.vertexAttribPointer( program_info.attrib_locations.vColor, 4, gl.FLOAT, gl.FALSE, 0, 0 );
-    gl.enableVertexAttribArray( program_info.attrib_locations.vColor );
+    if (colors_array) {
+        gl.bindBuffer( gl.ARRAY_BUFFER, color_buffer );
+        gl.bufferData( gl.ARRAY_BUFFER,  flatten(colors_array), gl.STATIC_DRAW );
+        gl.vertexAttribPointer( program_info.attrib_locations.vColor, 4, gl.FLOAT, gl.FALSE, 0, 0 );
+        gl.enableVertexAttribArray( program_info.attrib_locations.vColor );
+    }
 
     // (u, v)
-    if (program_info === tile_program_info || program_info === cube_program_info) {
+    if (textcoords_array) {
         //var textcoords_buffer = gl.createBuffer();
         gl.bindBuffer( gl.ARRAY_BUFFER, textcoords_buffer );
         gl.bufferData(gl.ARRAY_BUFFER, flatten(textcoords_array), gl.STATIC_DRAW );
         gl.vertexAttribPointer( program_info.attrib_locations.vTextcoords, 2, gl.FLOAT, gl.FALSE, 0, 0 );
-        gl.enableVertexAttribArray( program_info.attrib_locations.vTextcoords );
-    }
-
-    if (program_info === cube_program_info) {
-        //var hide_level_buffer = gl.createBuffer();
-        gl.bindBuffer( gl.ARRAY_BUFFER, hide_level_buffer );
-        gl.bufferData(gl.ARRAY_BUFFER, flatten(hide_level_array), gl.STATIC_DRAW );
-        gl.vertexAttribPointer( program_info.attrib_locations.vHideLevel, 1, gl.FLOAT, gl.FALSE, 0, 0 );
-        gl.enableVertexAttribArray( program_info.attrib_locations.vHideLevel );
+        gl.enableVertexAttribArray( program_info.attrib_locations.vTextcoords );       
     }
 }
+
+//------------------------------------------------------------------------------
+// Shaders uniform variadic parameters
+//------------------------------------------------------------------------------
 
 let hole_object;
 
-let cube_hide_level = [];
-cube_hide_level.length = cube_indices.length;
+let cube_hide_level = { level: -1000.0 };
 
-let cube_NO_hide_level = [];
-for (let i = 0; i < cube_hide_level.length; i++) {
-    cube_NO_hide_level[i] = -1000;
-}
+const cube_NO_hide_level = { level: -1000.0 };
 
 
 function update_hide_level() {
@@ -1412,19 +1605,17 @@ function update_hide_level() {
     const v3 = vertices[d[3][1]];
 
     let level = eval_level(r, v0, n, v3);
-    level = level < 0 ? level : -1000;
-    for (let i = 0; i < cube_hide_level.length; i++) {
-        cube_hide_level[i] = level;
-    }
+
+    cube_hide_level.level = level < 0 ? level : -1000;
 
     if (player.state === WINNING) {
-        objects_to_draw[0].hide_level_array = cube_hide_level;
-        objects_to_draw[1].hide_level_array = cube_hide_level;
-        objects_to_draw[2].hide_level_array = cube_hide_level;
+        objects_to_draw[0].uniforms.u_hide_level = cube_hide_level;
+        objects_to_draw[1].uniforms.u_hide_level = cube_hide_level;
+        objects_to_draw[2].uniforms.u_hide_level = cube_hide_level;
     } else {
-        objects_to_draw[0].hide_level_array = cube_NO_hide_level;
-        objects_to_draw[1].hide_level_array = cube_NO_hide_level;
-        objects_to_draw[2].hide_level_array = cube_NO_hide_level;
+        objects_to_draw[0].uniforms.u_hide_level = cube_NO_hide_level;
+        objects_to_draw[1].uniforms.u_hide_level = cube_NO_hide_level;
+        objects_to_draw[2].uniforms.u_hide_level = cube_NO_hide_level;
     }
 }
 
@@ -1436,3 +1627,22 @@ function eval_level(r, p, n, o) {
     const t = (dot(n, subtract(o, p))) / nd;
     return add(p, mult(t, r))[1];
 }
+
+
+const FADE_MAX = 18;
+const FADE_MIN = 12;
+
+const FADE_SPEED = 2.0;
+
+let fade_counter = 0.0;
+
+function update_background_fade() {
+    fade_counter += delta_time * FADE_SPEED;
+    if (fade_counter > 2 * Math.PI) {
+        fade_counter -= 2 * Math.PI;    
+    }
+
+    objects_to_draw[3].uniforms.fade = (Math.cos(fade_counter) + 1) * (FADE_MAX - FADE_MIN) + FADE_MIN;
+}
+
+

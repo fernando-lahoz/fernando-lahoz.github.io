@@ -19,6 +19,7 @@ body {
 }
 
 p {
+    -moz-user-select: none;
     -webkit-user-select: none;
     user-select: none;
 }
@@ -26,6 +27,13 @@ p {
 button {
     background:none;
     border:none;
+    -moz-user-select: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+img {
+    -moz-user-select: none;
     -webkit-user-select: none;
     user-select: none;
 }
@@ -34,7 +42,7 @@ button {
     --r: 1280 / 720;
 
     aspect-ratio: var(--r);
-    width: min(100%, 100vh*(var(--r)));
+    width: min(100vw, 100vh*(var(--r)));
 
     display: flex;
     justify-content: center;
@@ -344,7 +352,7 @@ button {
     flex-direction: row;
     align-items: flex-start;
     justify-content: space-between;
-    height: 40%;
+    height: 40%; 
     width: 100%;
     position: relative;
     top: 25%;
@@ -353,7 +361,7 @@ button {
 .digit-container{
     --r: 1280 / 720;
     display: flex;
-    width: min(1em, 1em*(var(--r)));
+    width: min(2vw, 2vh*(var(--r)));
     justify-content: center;
 }
 

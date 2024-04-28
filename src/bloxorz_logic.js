@@ -1,7 +1,4 @@
 //TODO: record en el menú
-
-//TODO: add another line to slabs
-
 //TODO: animation of falling to the map at the beginning
 
 // Block types
@@ -333,11 +330,7 @@ function get_movement_sound_of_tile(tile) {
                            SOUNDS.block_move_bridge_3]];
     }
 
-    if (tile.type === BUTTON) {
-        return [BUTTON, null];
-    }
-
-    if (tile.type === PLAIN) {
+    if (tile.type === PLAIN || (tile.type === BUTTON && tile.activation === HEAVY) || tile.type === SPLIT) {
         // if (player.block_type === LONG) {
         //     return [PLAIN, [SOUNDS.block_move_1,
         //                     SOUNDS.block_move_2,
@@ -347,6 +340,10 @@ function get_movement_sound_of_tile(tile) {
             return [PLAIN, [SOUNDS.block_move_cube_1,
                             SOUNDS.block_move_cube_2]];
         // }
+    }
+
+    if (tile.type === BUTTON) {
+        return [BUTTON, null];
     }
 
     if (tile.type === FRAGILE) {
@@ -470,7 +467,12 @@ function get_after_movement_state() {
         }
     }
 
-    movement_sound_two_tiles(tile0, tile1);
+    if (player.block_type === LONG) {
+        movement_sound_two_tiles(tile0, tile1);
+    } else {
+        movement_sound_one_tile(player.chosen_block === 0 ? tile0 : tile1);
+    }
+    
 
     // --- Check if player pressed a soft button -------------------------------
 

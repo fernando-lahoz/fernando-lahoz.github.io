@@ -322,11 +322,12 @@ const TUTORIAL_TEXT = document.createElement("p");
 TUTORIAL_TEXT.classList.add("bloxorz-text", "left-padding");
 TUTORIAL_TEXT.style = "width:65%";
 
+
 const TUTORIAL_IMAGE = document.createElement("img");
-TUTORIAL_IMAGE.classList.add("right-padding");
+//TUTORIAL_IMAGE.classList.add("right-padding");
 TUTORIAL_IMAGE.style = "height:100%;";
-TUTORIAL_IMAGE.title = "Yaranaika??";
-TUTORIAL_IMAGE.src = "https://ih0.redbubble.net/image.206201235.0962/flat,800x800,070,f.u2.jpg";
+TUTORIAL_IMAGE.title = "Wireframe";
+TUTORIAL_IMAGE.src = "./assets/images/tutorial-1.png";
 
 TUTORIAL_INFO.appendChild(TUTORIAL_TEXT);
 TUTORIAL_INFO.appendChild(TUTORIAL_IMAGE);
@@ -471,6 +472,7 @@ function show_instructions() {
     TUTORIAL_TEXT.innerText = TUTORIAL_PAGE_TEXT[tutorial_page - 1];
     game_window.appendChild(TUTORIAL_FIRST_PAGE);
     game_window.appendChild(TUTORIAL_INFO);
+    TUTORIAL_IMAGE.src = `assets/images/tutorial-${tutorial_page}.png`;
 }
 
 function next_instructions_page() {
@@ -487,6 +489,7 @@ function next_instructions_page() {
         game_window.appendChild(TUTORIAL_LAST_PAGE);
     }
     TUTORIAL_TEXT.innerText = TUTORIAL_PAGE_TEXT[tutorial_page - 1];
+    TUTORIAL_IMAGE.src = `assets/images/tutorial-${tutorial_page}.png`;
 }
 
 function prev_instructions_page() {
@@ -503,6 +506,7 @@ function prev_instructions_page() {
         game_window.appendChild(TUTORIAL_FIRST_PAGE);
     }
     TUTORIAL_TEXT.innerText = TUTORIAL_PAGE_TEXT[tutorial_page - 1];
+    TUTORIAL_IMAGE.src = `assets/images/tutorial-${tutorial_page}.png`;
 }
 
 function hide_instructions() {
