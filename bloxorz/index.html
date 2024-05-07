@@ -3,7 +3,7 @@
 <head>
     
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1.0">
     
     <title>Bloxorz</title>
     <link rel="icon" href="assets/images/favicon.ico">
@@ -12,7 +12,7 @@
 
     <!-- Vertex shader -->
     <script id="tile-vertex-shader" type="x-shader/x-vertex">
-        attribute vec3 vPosition;
+        attribute vec4 vPosition;
         attribute vec4 vColor;
 
         attribute vec2 vTextcoords;
@@ -22,15 +22,21 @@
         uniform mat4 projection; // projection matrix
         varying vec4 varColor;
         varying vec2 varTextcoords;
+
+        uniform mat4 textureMatrix;
+        varying vec4 varProjectedTexcoord;
+
         void main() 
         {
-            gl_Position = projection * view * model * vec4(vPosition, 1);
+            gl_Position = projection * view * model * vPosition;
             varColor = vColor;
             varTextcoords = vTextcoords;
+
+            varProjectedTexcoord = textureMatrix * model * vPosition;
         }
     </script>
     <script id="block-vertex-shader" type="x-shader/x-vertex">
-        attribute vec3 vPosition;
+        attribute vec4 vPosition;
         attribute vec4 vColor;
 
         attribute vec2 vTextcoords;
@@ -43,13 +49,18 @@
 
         varying vec4 varPosition;
 
+        uniform mat4 textureMatrix;
+        varying vec4 varProjectedTexcoord;
+
         void main() 
         {
-            gl_Position = projection * view * model * vec4(vPosition, 1);
+            gl_Position = projection * view * model * vPosition;
             
             varColor = vColor;
             varTextcoords = vTextcoords;
-            varPosition = model * vec4(vPosition, 1);
+            varPosition = model * vPosition;
+
+            varProjectedTexcoord = textureMatrix * model * vPosition;
         }
     </script>
     <script id="sphere-vertex-shader" type="x-shader/x-vertex">
@@ -67,6 +78,27 @@
         }
     </script>
     <script id="vertex-shader" type="x-shader/x-vertex">
+        attribute vec4 vPosition;
+        attribute vec4 vColor;
+        
+        uniform mat4 model; // model matrix
+        uniform mat4 view; // view matrix 
+        uniform mat4 projection; // projection matrix
+        
+        uniform mat4 textureMatrix;
+        varying vec4 varProjectedTexcoord;
+
+        varying vec4 varColor;
+        
+        void main() {
+            gl_Position = projection * view * model * vPosition;
+            
+            varProjectedTexcoord = textureMatrix * model * vPosition;
+
+            varColor = vColor;
+        }
+    </script>
+    <script id="shadow-vertex-shader" type="x-shader/x-vertex">
         attribute vec3 vPosition;
         attribute vec4 vColor;
 
@@ -84,17 +116,33 @@
     <!-- Fragment shader -->
     <script id="tile-fragment-shader" type="x-shader/x-fragment">
         #define ALPHA (2.2)
+        #define BIAS 0.00125
 
         precision mediump float;
         varying vec4 varColor;
         uniform vec4 colorMult;
         varying vec2 varTextcoords;
+        varying vec4 varProjectedTexcoord;
+        uniform sampler2D shadowTexture;
         void main() 
         { 
+            vec3 projectedTexcoord = varProjectedTexcoord.xyz / varProjectedTexcoord.w;
+            float currentDepth = projectedTexcoord.z - BIAS;
+
+            // Check if it is inside the camera
+            bool inRange = true;
+               projectedTexcoord.x >= 0.0 &&
+                projectedTexcoord.x <= 1.0 &&
+                projectedTexcoord.y >= 0.0 &&
+                projectedTexcoord.y <= 1.0;
+
+            float projectedDepth = texture2D(shadowTexture, projectedTexcoord.xy).r;
+            float shadowLight = (inRange && projectedDepth <= currentDepth) ? 0.3 : 1.0;
+
             if (varTextcoords[0] < 0.01 || varTextcoords[0] > 0.99 ||
                 varTextcoords[1] < 0.01 || varTextcoords[1] > 0.99)
             {
-                gl_FragColor = vec4(113.0/255.0, 114.0/255.0, 116.0/255.0, 1);
+                gl_FragColor = vec4(113.0/255.0, 114.0/255.0, 116.0/255.0, 1) * shadowLight;
             }
             else
             {
@@ -102,12 +150,13 @@
                 float y = varTextcoords[1];
                 float val =  exp(ALPHA * (pow((x-0.5),4.0) + pow((y-0.5),4.0)));
 
-                gl_FragColor = varColor * colorMult * vec4( val, val, val, 1 );
+                gl_FragColor = varColor * colorMult * vec4( val, val, val, 1 ) * shadowLight;
             }
         }
     </script>
     <script id="hole-fragment-shader" type="x-shader/x-fragment">
         #define ALPHA (6.0)
+        #define BIAS 0.00125
 
         precision mediump float;
         varying vec4 varColor;
@@ -118,20 +167,38 @@
 
         uniform sampler2D uTexture;
 
+        varying vec4 varProjectedTexcoord;
+        uniform sampler2D shadowTexture;
+
         void main() 
         { 
             if (varPosition[1] < hideLevel) {
                 discard;
             }
+            
+            vec3 projectedTexcoord = varProjectedTexcoord.xyz / varProjectedTexcoord.w;
+            float currentDepth = projectedTexcoord.z - BIAS;
+
+            // Check if it is inside the camera
+            bool inRange = true;
+            projectedTexcoord.x >= 0.0 &&
+                projectedTexcoord.x <= 1.0 &&
+                projectedTexcoord.y >= 0.0 &&
+                projectedTexcoord.y <= 1.0;
+
+            float projectedDepth = texture2D(shadowTexture, projectedTexcoord.xy).r;
+            float shadowLight = (inRange && projectedDepth <= currentDepth) ? 0.3 : 1.0;
 
             float x = varTextcoords[0];
             float y = varTextcoords[1];
             float val =  exp(-ALPHA * (pow((x-0.5),4.0) + pow((y-0.5),4.0)));
 
-            gl_FragColor = varColor * colorMult * vec4( val, val, val, 1 );
+            gl_FragColor = varColor * colorMult * vec4( val, val, val, 1 ) * shadowLight;
+            
         }
     </script>
     <script id="block-fragment-shader" type="x-shader/x-fragment">
+        #define BIAS 0.00125
         #define ALPHA (16.0)
 
         precision mediump float;
@@ -143,19 +210,32 @@
 
         uniform sampler2D uTexture;
 
+        varying vec4 varProjectedTexcoord;
+        uniform sampler2D shadowTexture;
+
         void main() 
         { 
             if (varPosition[1] < hideLevel) {
                 discard;
             }
 
+            vec3 projectedTexcoord = varProjectedTexcoord.xyz / varProjectedTexcoord.w;
+            float currentDepth = projectedTexcoord.z - BIAS;
+
+            // Check if it is inside the camera
+            bool inRange =
+                projectedTexcoord.x >= 0.0 &&
+                projectedTexcoord.x <= 1.0 &&
+                projectedTexcoord.y >= 0.0 &&
+                projectedTexcoord.y <= 1.0;
+
+            float projectedDepth = texture2D(shadowTexture, projectedTexcoord.xy).r;
+            float shadowLight = (inRange && projectedDepth <= currentDepth) ? 0.3 : 1.0;
+
             float x = varTextcoords[0];
             float y = varTextcoords[1];
-            //float val =  exp(-ALPHA * (pow((x-0.5),4.0) + pow((y-0.5),4.0)));
-            float val =  1.0;
 
-            //gl_FragColor = varColor * colorMult * vec4( val, val, val, 1 );
-            gl_FragColor = texture2D(uTexture, varTextcoords) * colorMult * vec4( val, val, val, 1 );
+            gl_FragColor = texture2D(uTexture, varTextcoords) * colorMult * shadowLight;
         }
     </script>
     <script id="sphere-fragment-shader" type="x-shader/x-fragment">
@@ -173,21 +253,48 @@
 
         varying vec4 varPosition;
         void main() {
-
-            //float x = varPosition[1] / R;
+            vec3 position = varPosition.xyz / varPosition.w;
 
             //ANGLE
-            float x = (sin(ANGLE) * varPosition[0] + cos(ANGLE) * varPosition[1]) / R;
+            float x = (sin(ANGLE) * position[0] + cos(ANGLE) * position[1]) / R;
 
-            //float s = 0.5 * (-cos(ANGLE) * varPosition[2] + sin(ANGLE) * varPosition[1]) / R;
-            
-            float s = 0.5 * (-cos(ANGLE) * varPosition[2] + sin(ANGLE) * varPosition[1]) / R;
+            float s = 0.5 * (-cos(ANGLE) * position[2] + sin(ANGLE) * position[1]) / R;
 
-            //gl_FragColor = colorMult * (1.0 - ((pow(fadeValue, (-(x-0.5) + 1.0)) - 1.0) / (fadeValue * fadeValue - 1.0)));
-            gl_FragColor = colorMult * (1.0 / (pow(2.0, -fadeValue * (x - (4.0 * pow(s, 3.0) - s) / 3.0)) + 1.0) );
+            gl_FragColor = colorMult * (1.0 / (pow(2.0, -fadeValue * (x - (4.0 * s*s*s - s) / 3.0)) + 1.0) );
         }
     </script>
     <script id="fragment-shader" type="x-shader/x-fragment">
+        #define BIAS 0.00125
+
+        precision mediump float;
+
+        varying vec4 varProjectedTexcoord;
+        varying vec4 varColor;
+
+        uniform sampler2D shadowTexture;
+        uniform vec4 colorMult;
+
+        void main() {
+
+            vec3 projectedTexcoord = varProjectedTexcoord.xyz / varProjectedTexcoord.w;
+            float currentDepth = projectedTexcoord.z - BIAS;
+
+            // Check if it is inside the camera
+            bool inRange =
+                projectedTexcoord.x >= 0.0 &&
+                projectedTexcoord.x <= 1.0 &&
+                projectedTexcoord.y >= 0.0 &&
+                projectedTexcoord.y <= 1.0;
+
+            // the 'r' channel has the depth values
+            float projectedDepth = texture2D(shadowTexture, projectedTexcoord.xy).r;
+            float shadowLight = (inRange && projectedDepth <= currentDepth) ? 0.3 : 1.0;
+
+            gl_FragColor = varColor * colorMult * shadowLight;
+        }
+    </script>
+
+    <script id="shadow-fragment-shader" type="x-shader/x-fragment">
         precision mediump float;
         varying vec4 varColor;
         uniform vec4 colorMult;
@@ -195,10 +302,12 @@
             gl_FragColor = varColor * colorMult;
         }
     </script>
-
+    
     <script type="text/javascript" src="lib/webgl-utils.js"></script>
     <script type="text/javascript" src="lib/initShaders.js"></script>
     <script type="text/javascript" src="lib/MVnew.js"></script>
+    <script type="text/javascript" src="lib/hammer.min.js"></script>
+
 
     <script type="text/javascript" src="src/bloxorz_logic.js"></script>
     <script type="text/javascript" src="src/bloxorz_geometry.js"></script>

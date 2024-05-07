@@ -20,6 +20,8 @@ const MAIN_MENU = document.createElement("div");
 MAIN_MENU.classList.add("option-container");
 MAIN_MENU.style = "position : absolute; top: 62%; left:33%;";
 
+const CREDITS_MENU = MAIN_MENU.cloneNode(true);
+
 const START_NEW_GAME_BUTTON = document.createElement("button");
 START_NEW_GAME_BUTTON.classList.add("bloxorz-text", "menu-option", "bloxorz-click");
 START_NEW_GAME_BUTTON.innerText = "Start New Game";
@@ -42,9 +44,29 @@ TOGGLE_SOUND_BUTTON.onclick = toggle_sound;
 TOGGLE_SOUND_BUTTON.onmouseover = () => { play_sound(SOUNDS.menu_hover); }
 TOGGLE_SOUND_BUTTON.onmousedown = () => { play_sound(SOUNDS.menu_click); }
 
+const CREDITS_BUTTON = document.createElement("button");
+CREDITS_BUTTON.classList.add("bloxorz-text", "menu-option", "bloxorz-click");
+CREDITS_BUTTON.innerText = "Credits";
+CREDITS_BUTTON.onclick = toggle_credits;
+CREDITS_BUTTON.onmouseover = () => { play_sound(SOUNDS.menu_hover); }
+CREDITS_BUTTON.onmousedown = () => { play_sound(SOUNDS.menu_click); }
+
+CREDITS_BUTTON_RETURN = CREDITS_BUTTON.cloneNode(true);
+CREDITS_BUTTON_RETURN.innerText = "Return";
+CREDITS_BUTTON_RETURN.onclick = toggle_credits;
+CREDITS_BUTTON_RETURN.onmouseover = () => { play_sound(SOUNDS.menu_hover); }
+CREDITS_BUTTON_RETURN.onmousedown = () => { play_sound(SOUNDS.menu_click); }
+
+const CREDITS = document.createElement("div");
+CREDITS.classList.add("bloxorz-text", "credits-content");
+CREDITS.innerText = `All audio, puzzles and fonts in Bloxorz created by Damien Clarke, DX Interactive, 21st June 2007, graphics and textures are inspired by the original game.`;
+
 MAIN_MENU.appendChild(START_NEW_GAME_BUTTON);
 //MAIN_MENU.appendChild(LOAD_STAGE_BUTTON);
 MAIN_MENU.appendChild(TOGGLE_SOUND_BUTTON);
+MAIN_MENU.appendChild(CREDITS_BUTTON);
+
+CREDITS_MENU.appendChild(CREDITS_BUTTON_RETURN);
 
 const SELECTOR_COLUMN_CONTAINER = document.createElement("div");
 SELECTOR_COLUMN_CONTAINER.classList.add("selector-column-container");
@@ -352,8 +374,10 @@ function show_main_menu(enable_continue) {
 
     if (enable_continue && !continue_showed) {
         MAIN_MENU.removeChild(TOGGLE_SOUND_BUTTON);
+        MAIN_MENU.removeChild(CREDITS_BUTTON);
         MAIN_MENU.appendChild(LOAD_STAGE_BUTTON);
         MAIN_MENU.appendChild(TOGGLE_SOUND_BUTTON);
+        MAIN_MENU.appendChild(CREDITS_BUTTON);
     }
     else if (!enable_continue && continue_showed) {
         MAIN_MENU.removeChild(LOAD_STAGE_BUTTON);
@@ -367,6 +391,23 @@ function show_main_menu(enable_continue) {
 function hide_main_menu() {
     game_window.removeChild(MAIN_TITLE);
     game_window.removeChild(MAIN_MENU);
+}
+
+let credits_shown = false;
+function toggle_credits() {
+    if(credits_shown){
+        credits_shown = false;
+        game_window.removeChild(MAIN_TITLE);
+        game_window.removeChild(CREDITS_MENU);
+        game_window.removeChild(CREDITS);
+        show_main_menu(continue_showed);
+    }else{
+        credits_shown = true;
+        hide_main_menu();
+        game_window.appendChild(MAIN_TITLE);
+        game_window.appendChild(CREDITS_MENU);
+        game_window.appendChild(CREDITS);
+    }
 }
 
 //--- INSTRUCTIONS -------------------------------------------------------------
@@ -407,8 +448,8 @@ const TUTORIAL_PAGE_TEXT = [
     
     Soft switches are activated when any part of
     your block presses it. Hard switches require
-    much more pressure, so your block must be
-    standing on its end to activate it.`,
+    much more pressure, so your block must rest
+    vertically on them to activate.`,
     `6/10
 
     When activated, each switch may behave
@@ -458,6 +499,40 @@ const TUTORIAL_PAGE_TEXT = [
     your current game.`,
 ];
 
+const TUTORIAL_PAGE_TEXT_MOBILE = [
+    TUTORIAL_PAGE_TEXT[0],
+    `2/10
+
+    To move the block around the world,
+    flick left, right, up and down on the screen.
+    You can get a fluid movement if you drag instead.
+
+    Be careful not to fall off the edges -
+    the level will be restarted if this happens.`,
+    `3/10
+
+    Drag while pressing with other finger to control
+    the camera. Pinch with two fingers to zoom in/out.
+    Pressing with both fingers for an extended time
+    will reset the camera.`,
+    TUTORIAL_PAGE_TEXT[3],
+    TUTORIAL_PAGE_TEXT[4],
+    TUTORIAL_PAGE_TEXT[5],
+    TUTORIAL_PAGE_TEXT[6],
+    TUTORIAL_PAGE_TEXT[7],
+    `9/10
+    
+    You can select which small block to use at any
+    time by double tapping.
+    
+    Small blocks can still operate soft switches,
+    but they aren't big enough to activate heavy
+    switches. Also small blocks cannot go through
+    the exit hole - only a complete block can finish
+    the stage.`,
+    TUTORIAL_PAGE_TEXT[9],
+];
+
 const REMINDER_TEXT = [
     `Use the up, down, left and right arrow keys to move your block around.
     Use W, A, S and D to control the camera. Zoom in/out with +/-.
@@ -465,11 +540,19 @@ const REMINDER_TEXT = [
     `Remember to use the Spacebar to toggle between the two small blocks.`
 ]
 
+const REMINDER_TEXT_MOBILE = [
+    `Flick up, down, left and right to move your block around. 
+    Drag while pressing with other finger to control the camera.
+    Pinch with two fingers to zoom in/out.
+    Pressing with both fingers for an extended time will reset the camera.`,
+    `Remember to double tap to toggle between the two small blocks.`
+]
+
 let tutorial_page = 0;
 
 function show_instructions() {
     tutorial_page = 1;
-    TUTORIAL_TEXT.innerText = TUTORIAL_PAGE_TEXT[tutorial_page - 1];
+    TUTORIAL_TEXT.innerText = is_mobile ? TUTORIAL_PAGE_TEXT_MOBILE[tutorial_page - 1] : TUTORIAL_PAGE_TEXT[tutorial_page - 1];
     game_window.appendChild(TUTORIAL_FIRST_PAGE);
     game_window.appendChild(TUTORIAL_INFO);
     TUTORIAL_IMAGE.src = `assets/images/tutorial-${tutorial_page}.png`;
@@ -488,7 +571,7 @@ function next_instructions_page() {
         game_window.removeChild(TUTORIAL_PAGE);
         game_window.appendChild(TUTORIAL_LAST_PAGE);
     }
-    TUTORIAL_TEXT.innerText = TUTORIAL_PAGE_TEXT[tutorial_page - 1];
+    TUTORIAL_TEXT.innerText = is_mobile ? TUTORIAL_PAGE_TEXT_MOBILE[tutorial_page - 1] : TUTORIAL_PAGE_TEXT[tutorial_page - 1];
     TUTORIAL_IMAGE.src = `assets/images/tutorial-${tutorial_page}.png`;
 }
 
@@ -505,7 +588,7 @@ function prev_instructions_page() {
         game_window.removeChild(TUTORIAL_PAGE);
         game_window.appendChild(TUTORIAL_FIRST_PAGE);
     }
-    TUTORIAL_TEXT.innerText = TUTORIAL_PAGE_TEXT[tutorial_page - 1];
+    TUTORIAL_TEXT.innerText = is_mobile ? TUTORIAL_PAGE_TEXT_MOBILE[tutorial_page - 1] : TUTORIAL_PAGE_TEXT[tutorial_page - 1];
     TUTORIAL_IMAGE.src = `assets/images/tutorial-${tutorial_page}.png`;
 }
 
@@ -527,7 +610,7 @@ function hide_instructions() {
 
 function show_ingame_instructions() {
     tutorial_page = 1;
-    TUTORIAL_TEXT.innerText = TUTORIAL_PAGE_TEXT[tutorial_page - 1];
+    TUTORIAL_TEXT.innerText = is_mobile ? TUTORIAL_PAGE_TEXT_MOBILE[tutorial_page - 1] : TUTORIAL_PAGE_TEXT[tutorial_page - 1];
     game_window.appendChild(TUTORIAL_PAGE);
     game_window.appendChild(TUTORIAL_INFO);
     TUTORIAL_PAGE_R1.removeChild(PREV_BUTTON3);
@@ -549,7 +632,7 @@ function next_ingame_instructions_page() {
         game_window.removeChild(TUTORIAL_PAGE);
         game_window.appendChild(TUTORIAL_LAST_PAGE_INGAME);
     }
-    TUTORIAL_TEXT.innerText = TUTORIAL_PAGE_TEXT[tutorial_page - 1];
+    TUTORIAL_TEXT.innerText = is_mobile ? TUTORIAL_PAGE_TEXT_MOBILE[tutorial_page - 1] : TUTORIAL_PAGE_TEXT[tutorial_page - 1];
     TUTORIAL_IMAGE.src = `assets/images/tutorial-${tutorial_page}.png`;
 }
 
@@ -565,7 +648,7 @@ function prev_ingame_instructions_page() {
     if (tutorial_page === 1) {
         TUTORIAL_PAGE_R1.removeChild(PREV_BUTTON3);
     }
-    TUTORIAL_TEXT.innerText = TUTORIAL_PAGE_TEXT[tutorial_page - 1];
+    TUTORIAL_TEXT.innerText = is_mobile ? TUTORIAL_PAGE_TEXT_MOBILE[tutorial_page - 1] : TUTORIAL_PAGE_TEXT[tutorial_page - 1];
     TUTORIAL_IMAGE.src = `assets/images/tutorial-${tutorial_page}.png`;
 }
 
@@ -608,16 +691,16 @@ function show_in_game_panels(game_state) {
 
     if (is_anotation_hidden) {
         if (game_state.level === 1) {
-            set_anotation_text(REMINDER_TEXT[0]);
+            set_anotation_text(is_mobile ? REMINDER_TEXT_MOBILE[0] : REMINDER_TEXT[0]);
             show_anotation();
         } else if (game_state.level === 8) {
-            set_anotation_text(REMINDER_TEXT[1]);
+            set_anotation_text(is_mobile ? REMINDER_TEXT_MOBILE[1] : REMINDER_TEXT[1]);
             show_anotation();
         }
     }
 }
 
-function display_digits(number, array){
+function display_digits(number, array) {
     first_not_null = false;
     for(let i = 0; i < 7; i++){
         let mov_digit = (Math.floor(number / Math.pow(10, 7 - i)) % 10);
@@ -627,17 +710,19 @@ function display_digits(number, array){
         }
 
         if(first_not_null){
-            array[7 - i].innerHTML = mov_digit.toString();
+            array[7 - i].innerText = mov_digit.toString();
+        } else {
+            array[7 - i].innerText = "";
         }
     }
-    array[0].innerHTML = number % 10;
+    array[0].innerText = number % 10;
 }
 
 function update_in_game_panel_state(state) {
     //INFO_STAGE.innerText = state.level.toString().padStart(2, '0');
 
-    STG1.innerHTML = (Math.floor(state.level / 10) % 10).toString();
-    STG0.innerHTML = (state.level % 10).toString();
+    STG1.innerText = (Math.floor(state.level / 10) % 10).toString();
+    STG0.innerText = (state.level % 10).toString();
 
     //INFO_MOVES.innerText = state.move_counter.toString();
     
@@ -652,12 +737,12 @@ function update_in_game_panel_state(state) {
     //                    + minutes.toString().padStart(2, '0') + ':'
     //                    + seconds.toString().padStart(2, '0');
 
-    H2.innerHTML = (Math.floor(hours / 10) % 10).toString();
-    H1.innerHTML = (hours % 10).toString();
-    M2.innerHTML = (Math.floor(minutes / 10) % 10).toString();
-    M1.innerHTML = (minutes % 10).toString();
-    S2.innerHTML = (Math.floor(seconds / 10) % 10).toString();
-    S1.innerHTML = (seconds % 10).toString();
+    H2.innerText = (Math.floor(hours / 10) % 10).toString();
+    H1.innerText = (hours % 10).toString();
+    M2.innerText = (Math.floor(minutes / 10) % 10).toString();
+    M1.innerText = (minutes % 10).toString();
+    S2.innerText = (Math.floor(seconds / 10) % 10).toString();
+    S1.innerText = (seconds % 10).toString();
 }
 
 let is_anotation_hidden = true;

@@ -345,6 +345,8 @@ img {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
+    width : -moz-fit-content;
+    width : fit-content; 
 }
 
 .tutorial-container{
@@ -366,7 +368,10 @@ img {
 }
 
 .digit-sep-container{
+    --r: 1280 / 720;
     display: flex;
+    width: min(2vw, 2vh*(var(--r)));
+    justify-content: center;
 }
 
 .container{
@@ -395,4 +400,12 @@ img {
     width : fit-content; 
     position : absolute; 
     bottom : 10%;
+}
+
+.credits-content{
+    position: absolute;
+    bottom: 12%;
+    display:flex;
+    text-align: center;
+    width:80%
 }

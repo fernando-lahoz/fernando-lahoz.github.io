@@ -1,5 +1,6 @@
 // Variable to store the WebGL rendering context
 var gl;
+var ext;
 
 // Variables para los bufferes
 var vertex_buffer;
@@ -7,6 +8,7 @@ var color_buffer;
 var textcoords_buffer;
 var hide_level_buffer;
 
+const shadow_tools = {}
 
 var model = new mat4();   		// create a model matrix and set it to the identity matrix
 var view = new mat4();   		// create a view matrix and set it to the identity matrix
@@ -23,6 +25,13 @@ var cube_program;
 var hole_program;
 var sphere_program;
 
+var shadow_program;
+var shadow_program_info = {
+    uniform_locations: {},
+    attrib_locations: {},
+};
+
+
 let not_chosen_texture = {
     texture: null,
     unit: null,
@@ -34,32 +43,29 @@ let block_texture = {
     unit: null,
 };
 
+
+
 var program_info = {
-    program,
     uniform_locations: {},
     attrib_locations: {},
 };
 
 var tile_program_info = {
-    tile_program,
     uniform_locations: {},
     attrib_locations: {},
 }
 
 var cube_program_info = {
-    cube_program,
     uniform_locations: {},
     attrib_locations: {},
 }
 
 var hole_program_info = {
-    hole_program,
     uniform_locations: {},
     attrib_locations: {},
 }
 
 var sphere_program_info = {
-    sphere_program,
     uniform_locations: {},
     attrib_locations: {},
 }
@@ -142,6 +148,30 @@ function update_delta_time() {
 //----------------------------------------------------------------------------
 // Camera movement management
 //----------------------------------------------------------------------------
+
+// eye: vec3(-6.97, 10.97, 13.47),
+// at: vec3(3.5, 1.0, 7.5),
+// up: vec3(0.0, 1.0, 0.0),
+// size: 20.0,
+// depth: 40.0
+
+const light_base_distance = 16.79;
+const light_base_vector = vec3(-0.9, 0, 0.45);
+const sun_declination = Math.PI/7.0;
+const light_eye = add(vec3(7.0, 0.0, 4.5), add(mult(Math.cos(Math.PI/2 - sun_declination)*light_base_distance, light_base_vector), mult(Math.sin(Math.PI/2 - sun_declination)*light_base_distance, vec3(0.0, 1.0, 0.0))));
+
+//Esta es el punto de vista desde el foco de luz
+const LIGHT_CAM = {
+    eye: light_eye, //vec3(-1.97, 8.97, 13.47),
+    at: vec3(7.0, 0.0, 4.5),
+    up: vec3(0.0, 1.0, 0.0),
+    size: 20.0,
+    depth: 25.0
+}
+
+//Estas son sus matrices de proyeccion y vista
+let light_projection = ortho(-LIGHT_CAM.size/2.0, LIGHT_CAM.size/2.0, -LIGHT_CAM.size/2.0, LIGHT_CAM.size/2.0, 0.0, LIGHT_CAM.depth);
+let light_view = lookAt(LIGHT_CAM.eye, LIGHT_CAM.at, LIGHT_CAM.up);
 
 const BASE_CAMERA = {
     eye: vec3(7.0/* -1.0 */, 1.0/* 8.0 */, 20.0/* 20.0 */),
@@ -285,13 +315,87 @@ function update_camera_state() {
     camera.eye = add(BASE_CAMERA.at, rotated_betha);
 }
 
+//------------------------------------------------------------------------------
+
+let num_textures = 0;
+
+function init_shadows() {
+    shadow_tools.texture_unit_num = num_textures;
+    shadow_tools.texture_unit = gl.TEXTURE0 + num_textures;
+    num_textures += 1;
+
+    shadow_tools.depth_texture = gl.createTexture();
+    shadow_tools.depth_texture_size = 2048;
+    gl.activeTexture(shadow_tools.texture_unit);
+    gl.bindTexture(gl.TEXTURE_2D, shadow_tools.depth_texture );
+    gl.texImage2D(
+        gl.TEXTURE_2D,      // target
+        0,                  // mip level
+        gl.DEPTH_COMPONENT, // internal format
+        shadow_tools.depth_texture_size,   // width
+        shadow_tools.depth_texture_size,   // height
+        0,                  // border
+        gl.DEPTH_COMPONENT, // format
+        gl.UNSIGNED_INT,    // type
+        null);              // data
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    
+    shadow_tools.depth_framebuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, shadow_tools.depth_framebuffer);
+    gl.framebufferTexture2D(
+        gl.FRAMEBUFFER,       // target
+        gl.DEPTH_ATTACHMENT,  // attachment point
+        gl.TEXTURE_2D,        // texture target
+        shadow_tools.depth_texture, // texture
+        0);                   // mip level
+
+    
+    // Unused but necessary
+    let texture_num = num_textures;
+    shadow_tools.unused_texture_unit = gl.TEXTURE0 + texture_num;
+    num_textures += 1;
+    gl.activeTexture(shadow_tools.unused_texture_unit);
+
+    shadow_tools.unused_texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, shadow_tools.unused_texture);
+    gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        shadow_tools.depth_texture_size,
+        shadow_tools.depth_texture_size,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        null,
+    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    
+    // attach it to the framebuffer
+    gl.framebufferTexture2D(
+        gl.FRAMEBUFFER,        // target
+        gl.COLOR_ATTACHMENT0,  // attachment point
+        gl.TEXTURE_2D,         // texture target
+        shadow_tools.unused_texture,         // texture
+        0);                    // mip level
+
+}
+
+
 //--------------------
 
 let textures_array = [];
 
 function load_texture(tex_obj, url) {
-    const unit_num = textures_array.length;
-    const unit = gl[`TEXTURE${unit_num}`];
+    let unit_num = num_textures;
+    num_textures += 1;
+    const unit = gl.TEXTURE0 + unit_num;
 
     const texture = gl.createTexture();
     gl.activeTexture(unit);
@@ -338,7 +442,362 @@ function load_texture(tex_obj, url) {
 
 let canvas;
 
-const CANVAS_HEIGHT = screen.height;
+const CANVAS_HEIGHT = 1080; //TODO: change to screen
+const ACTION_RADIUS = 30.0;
+const QUADRANT_LIMIT = Math.sqrt(2.0)/2.0;
+
+const OCTANT_COS_LIMIT = Math.sqrt(2.0 + Math.sqrt(2.0))/2.0;
+const OCTANT_SIN_LIMIT = Math.sqrt(2.0 - Math.sqrt(2.0))/2.0;
+
+const SCALE_THRESHOLD = 15.0;
+
+let allow_gesture_player_movement = true;
+let allow_gesture_camera_movement = false;
+let allow_gesture_zoom_movement = false;
+let camera_has_moved = false;
+
+let current_fov = camera.fov;
+let prev_pinch_distance = null;
+let current_pinch_distance = null;
+let retain_variables = false;
+let current_pointers = 0;
+
+let gesture_reset_camera_delay = null;
+
+let cursor_1_pos;
+let cursor_2_pos;
+
+function reset_camera_timeout(){
+    //Si se ha puesto una cuenta atras para resetear la camara
+    if(gesture_reset_camera_delay !== null){
+
+        //La cancelamos
+        clearTimeout(gesture_reset_camera_delay);
+        gesture_reset_camera_delay = null;
+    }
+
+    //Se ha movido la camara
+    camera_has_moved = true;
+}
+
+function update_player_motion_gesture(direction_vector){
+    
+    //Calculamos el modulo
+    let modulus = length(direction_vector);
+
+    //Si el modulo es mayor al umbral de accion
+    if(modulus > ACTION_RADIUS){
+
+        //Calculamos el vector unitario
+        let unit_dir_vector = normalize(direction_vector);
+
+        //En funcion de en que cuadrante este el vector asignamos una direccion
+        if(unit_dir_vector[0] < 0.0 && (-QUADRANT_LIMIT < unit_dir_vector[1] && unit_dir_vector[1] <= QUADRANT_LIMIT)){
+            //left
+            player_action.left = true;
+        }else if(unit_dir_vector[0] > 0.0 && (-QUADRANT_LIMIT <= unit_dir_vector[1] && unit_dir_vector[1] < QUADRANT_LIMIT)){
+            //right
+            player_action.right = true;
+        }else if(unit_dir_vector[1] < 0.0 && (-QUADRANT_LIMIT <= unit_dir_vector[0] && unit_dir_vector[0] < QUADRANT_LIMIT)){
+            //up
+            player_action.up = true;
+        }else{
+            //down
+            player_action.down = true;
+        }
+    }
+}
+
+function update_camera_motion_gesture(direction_vector){
+
+    //Calculamos el modulo
+    let modulus = length(direction_vector);
+     
+    //Si el modulo es mayor al umbral de accion
+    if(modulus > ACTION_RADIUS){
+
+        //Quitamos el timeout del reinicio
+        reset_camera_timeout();
+
+        //Calculamos el vector unitario
+        let unit_dir_vector = normalize(direction_vector);
+
+        if(unit_dir_vector[0] > 0.0 && (-OCTANT_SIN_LIMIT < unit_dir_vector[1] && unit_dir_vector[1] <= OCTANT_SIN_LIMIT)){
+            //right
+            camera_actions.left = true;
+        }else if((OCTANT_SIN_LIMIT< unit_dir_vector[0] && unit_dir_vector[0] <= OCTANT_COS_LIMIT) && 
+                 (-OCTANT_SIN_LIMIT > unit_dir_vector[1] && unit_dir_vector[1] >= -OCTANT_COS_LIMIT)){
+            //right up
+            camera_actions.left = true;
+            camera_actions.down = true;
+        }else if(unit_dir_vector[1] < 0.0 && (-OCTANT_SIN_LIMIT < unit_dir_vector[0] && unit_dir_vector[0] <= OCTANT_SIN_LIMIT)){
+            //up
+            camera_actions.down = true;
+        }else if((-OCTANT_COS_LIMIT < unit_dir_vector[0] && unit_dir_vector[0] <= -OCTANT_SIN_LIMIT) && 
+                 (-OCTANT_SIN_LIMIT > unit_dir_vector[1] && unit_dir_vector[1] >= -OCTANT_COS_LIMIT)){
+            //left up
+            camera_actions.right = true;
+            camera_actions.down = true;
+        }else if(unit_dir_vector[0] < 0.0 && (-OCTANT_SIN_LIMIT < unit_dir_vector[1] && unit_dir_vector[1] <= OCTANT_SIN_LIMIT)){
+            //left
+            camera_actions.right = true;
+        }else if((-OCTANT_COS_LIMIT < unit_dir_vector[0] && unit_dir_vector[0] <= -OCTANT_SIN_LIMIT) && 
+                (OCTANT_COS_LIMIT > unit_dir_vector[1] && unit_dir_vector[1] >= OCTANT_SIN_LIMIT)){
+            //left down
+            camera_actions.right = true;
+            camera_actions.up = true;
+        }else if(unit_dir_vector[1] > 0.0 && (-OCTANT_SIN_LIMIT < unit_dir_vector[0] && unit_dir_vector[0] <= OCTANT_SIN_LIMIT)){
+            //down
+            camera_actions.up = true;
+        }else{
+            //right down
+            camera_actions.left = true;
+            camera_actions.up = true;
+        }
+    }
+}
+
+function update_camera_fov(scale){
+
+    //Escala en funcion del factor de escala el fov
+    let new_fov = current_fov/scale;
+    if(new_fov > 60){camera.fov = 60;}
+    else if(new_fov < 20){camera.fov = 20;}
+    else{camera.fov = new_fov;}
+}
+
+function reset_camera_action() {
+    camera_actions.left = false;
+    camera_actions.right = false;
+    camera_actions.up = false;
+    camera_actions.down = false;
+    camera_actions.add_fov = false;
+    camera_actions.sub_fov = false;
+}
+
+function control_gestures(ev){
+
+    //Evitamos la accion predeterminada
+    ev.preventDefault();
+
+    //Si no estamos jugando no hagas nada
+    if(current_app_state !== APP_STATES.PLAYING){ return; }
+
+    //Reiniciamos las acciones del jugador y de la camara
+    reset_player_action();
+    reset_camera_action();
+
+    //Calculamos la posicion actual del cursor 1
+    let current_cursor_1_pos = vec2(ev.pointers[0].clientX, ev.pointers[0].clientY);
+
+    //Calculamos cuanto se ha desplazado de su posicion original
+    let delta_cursor_1 = length(subtract(current_cursor_1_pos, cursor_1_pos));
+    
+    //Si hay 2 cursores
+    if(current_pointers === 2){
+
+        //Calculamos la posicion actual del cursor 2
+        let current_cursor_2_pos = vec2(ev.pointers[1].clientX, ev.pointers[1].clientY);
+
+        //Calcula la distancia entre los dos dedos
+        current_pinch_distance = length(subtract(current_cursor_2_pos, current_cursor_1_pos));
+
+        //Si el cursor 1 supera un determinado umbral de movimiento y se puede mover la camara
+        if(delta_cursor_1 > SCALE_THRESHOLD && allow_gesture_camera_movement) {
+
+            //Quitamos el timeout del reinicio
+            reset_camera_timeout();
+
+            //Damos feedback al usuario de que ha entrado en modo zoom
+            play_sound(SOUNDS.menu_click);
+
+            //Desactivamos el movimiento de camara y habilitamos el de zoom
+            allow_gesture_camera_movement = false;
+            allow_gesture_zoom_movement = true;
+        }
+
+        //Si se va a mover la camara
+        if(allow_gesture_camera_movement){
+
+            //Calculamos el vector delta entre la nueva posicion del cursor 2 y su anterior
+            let direction_vector = subtract(current_cursor_2_pos, cursor_2_pos);
+
+            //Actualizamos la posicion de la camara
+            update_camera_motion_gesture(direction_vector);
+
+        //Si no se va a mover la camara actualizamos el fov en funcion del factor de escala
+        }else if(allow_gesture_zoom_movement){
+
+            //La distancia entre dedos previa es la actual en caso de no haber sido guardada
+            if(prev_pinch_distance === null){
+                prev_pinch_distance = current_pinch_distance;
+            }
+
+            //Calculamos la escala
+            let scale = current_pinch_distance / prev_pinch_distance;
+
+            //Actualizamos el fov
+            update_camera_fov(scale);
+        }
+        
+    
+    //Si solo hay un cursor y no se ha presionado la pantalla con mas cursores
+    }else if(current_pointers === 1){
+
+        //Calculamos el vector dirección desde el centro en el que se presiono hasta el lugar desplazado
+        let direction_vector = vec2(ev.deltaX, ev.deltaY);
+
+        //Actualizamos la posicion del jugador
+        if(allow_gesture_player_movement){
+            update_player_motion_gesture(direction_vector);
+        }
+    }
+}
+
+// Regular expression to match common mobile device keywords
+// const mobileKeywordsRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+function check_mobile() {
+    let check = false;
+    (function(a){if(/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino|android|ipad|playbook|silk/i.test(a)||/1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0,4))) check = true;})(navigator.userAgent||navigator.vendor||window.opera);
+    return check;
+};
+//const is_mobile = mobileKeywordsRegex.test(navigator.userAgent);
+const is_mobile = check_mobile();
+
+// Solo si es movil obliga el uso de pantalla completa
+if(is_mobile){
+    addEventListener("click", (_) => {
+        document.documentElement.requestFullscreen();
+    });
+}
+
+function init_gesture_control(game_window){
+
+    //Registra todos los eventos de gesto
+    gesture_manager = new Hammer.Manager(game_window);
+
+    //Añadimos gestos de movimiento, cambio de bloque y reseteo de camara
+    gesture_manager.add(new Hammer.Pan({ event:'motion', pointers : 0, direction: Hammer.DIRECTION_ALL, threshold: 10}));
+    gesture_manager.add(new Hammer.Tap({ event:'change_block', taps : 2}));
+
+    //Con esto controlamos camara y bloque
+    gesture_manager.on('motion', control_gestures);
+
+    //Con esto sacamos el numero de cursores en pantalla
+    game_window.addEventListener('touchstart', function(ev) {
+
+        //Si no estamos jugando vuelve
+        if(current_app_state !== APP_STATES.PLAYING){ return; }
+        
+        //Medimos el numero de cursores
+        current_pointers = ev.touches.length;
+
+        //Si el numero de cursores es 1
+        if(current_pointers === 1){
+
+            //Nos guardamos la posicion del primer punto tocado
+            cursor_1_pos = vec2(ev.targetTouches[0].clientX, ev.targetTouches[0].clientY);
+        }
+
+        //Si hay 2 presionando la pantalla
+        if(current_pointers === 2){
+
+            //Nos guardamos la posicion del segundo punto tocado
+            cursor_2_pos = vec2(ev.targetTouches[1].clientX, ev.targetTouches[1].clientY);
+
+            //Si la camara aun no se ha movido
+            if(!camera_has_moved){
+                
+                //Lanzamos una funcion dentro de 1 segundo para reiniciar la camara
+                gesture_reset_camera_delay = setTimeout(() => {
+
+                    //Deshabilitamos la camara
+                    allow_gesture_camera_movement = false;
+
+                    //Damos feedback al usuario de que ha reseteado la camara
+                    play_sound(SOUNDS.flush_map);
+
+                    //Reseteamos la camara
+                    event_queue.push(GAME_EVENTS.playing.reset_camera);
+                }, 1000);
+            }
+
+            //Si permitiamos el movimiento del jugador
+            if(allow_gesture_player_movement){
+
+                //Damos feedback para que se entere que ha cambiado al modo camara
+                play_sound(SOUNDS.menu_click);
+            }
+
+            //Deshabilitamos el control de gestos del jugador
+            allow_gesture_player_movement = false;
+
+            //Si no estamos en proceso de hacer zoom activamos el gesto de camara
+            if(!allow_gesture_zoom_movement){
+                allow_gesture_camera_movement = true;
+            }
+        }
+    });
+
+    game_window.addEventListener('touchend', function(ev) {
+
+        //Medimos el numero de cursores
+        current_pointers = ev.touches.length;
+
+        //Si solo hay un cursor
+        if(current_pointers === 1){
+            //Reseteamos la accion de la camara
+            reset_camera_action();
+
+            //Reseteamos la pinch distance previa
+            prev_pinch_distance = null;
+
+            //Tomamos el fov actual
+            current_fov = camera.fov;
+        }
+
+        //Si ya no hay cursor alguno
+        if(current_pointers === 0){
+            //Reseteamos las acciones
+            reset_player_action();
+            reset_camera_action();
+
+            allow_gesture_player_movement = true;
+            allow_gesture_camera_movement = false;
+            allow_gesture_zoom_movement = false;
+            retain_variables = false;
+            camera_has_moved = false;
+        }
+    });
+
+    //Cuando haga un doble tap el usuario cambiara el bloque
+    gesture_manager.on('change_block', (_) => {
+
+        if(current_app_state !== APP_STATES.PLAYING){ return; }
+        event_queue.push(GAME_EVENTS.playing.change_chosen_block);
+    });
+}
+
+const WHEEL_THRESHOLD = 1000.0;
+
+function update_scale_by_wheel(ev){
+    ev.preventDefault();
+
+    //Si no estamos jugando vuelve
+    if(current_app_state !== APP_STATES.PLAYING){ return; }
+
+    //Guardamos el fov actual
+    current_fov = camera.fov;
+
+    //Calculamos la escala en función de lo que se ha movido la ruedeta
+    let scale = 1.0 - ev.deltaY/WHEEL_THRESHOLD;
+
+    //Si la escala se hace cero la ponemos a un valor no nulo
+    if(scale === 0.0) {scale = 0.001};
+
+    //Actualizamos el fov
+    update_camera_fov(scale);
+}
 
 function init() {
 
@@ -354,10 +813,23 @@ function init() {
     canvas.width = CANVAS_HEIGHT * aspect_ratio;
     canvas.height = CANVAS_HEIGHT;
 
+    if(is_mobile) {init_gesture_control(game_window)};
+
+    game_window.addEventListener("wheel", update_scale_by_wheel);
+
+    // <----------
+
     gl = WebGLUtils.setupWebGL(canvas, {antialias: true});
     if (!gl) {
         alert("WebGL isn't available");
     }
+
+    ext = gl.getExtension('WEBGL_depth_texture');
+    if (!ext) {
+        alert('need WEBGL_depth_texture');
+    }
+
+    init_shadows();
 
     //Genera los bufferes
     vertex_buffer = gl.createBuffer();
@@ -378,12 +850,15 @@ function init() {
     hole_program = initShaders(gl, "block-vertex-shader", "hole-fragment-shader");
     tile_program = initShaders(gl, "tile-vertex-shader", "tile-fragment-shader");
     sphere_program = initShaders(gl, "sphere-vertex-shader", "sphere-fragment-shader");
+    shadow_program = initShaders(gl, "shadow-vertex-shader", "shadow-fragment-shader");
 
     // Save the attribute and uniform locations
     program_info.uniform_locations.model = gl.getUniformLocation(program, "model");
     program_info.uniform_locations.view = gl.getUniformLocation(program, "view");
     program_info.uniform_locations.projection = gl.getUniformLocation(program, "projection");
     program_info.uniform_locations.colorMult = gl.getUniformLocation(program, "colorMult");
+    program_info.uniform_locations.textureMatrix = gl.getUniformLocation(program, "textureMatrix");
+    program_info.uniform_locations.shadowTexture = gl.getUniformLocation(program, "shadowTexture");
     program_info.attrib_locations.vPosition = gl.getAttribLocation(program, "vPosition");
     program_info.attrib_locations.vColor = gl.getAttribLocation(program, "vColor");
     program_info.program = program;
@@ -395,6 +870,8 @@ function init() {
     tile_program_info.attrib_locations.vPosition = gl.getAttribLocation(tile_program, "vPosition");
     tile_program_info.attrib_locations.vColor = gl.getAttribLocation(tile_program, "vColor");
     tile_program_info.attrib_locations.vTextcoords = gl.getAttribLocation(tile_program, "vTextcoords");
+    tile_program_info.uniform_locations.textureMatrix = gl.getUniformLocation(tile_program, "textureMatrix");
+    tile_program_info.uniform_locations.shadowTexture = gl.getUniformLocation(tile_program, "shadowTexture");
     tile_program_info.program = tile_program;
 
     cube_program_info.uniform_locations.model = gl.getUniformLocation(cube_program, "model");
@@ -405,6 +882,8 @@ function init() {
     cube_program_info.attrib_locations.vColor = gl.getAttribLocation(cube_program, "vColor");
     cube_program_info.attrib_locations.vTextcoords = gl.getAttribLocation(cube_program, "vTextcoords");
     cube_program_info.uniform_locations.hideLevel = gl.getUniformLocation(cube_program, "hideLevel");
+    cube_program_info.uniform_locations.textureMatrix = gl.getUniformLocation(cube_program, "textureMatrix");
+    cube_program_info.uniform_locations.shadowTexture = gl.getUniformLocation(cube_program, "shadowTexture");
     cube_program_info.program = cube_program;
 
     cube_program_info.texture_location = gl.getUniformLocation(cube_program, "uTexture");
@@ -418,6 +897,8 @@ function init() {
     hole_program_info.attrib_locations.vColor = gl.getAttribLocation(hole_program, "vColor");
     hole_program_info.attrib_locations.vTextcoords = gl.getAttribLocation(hole_program, "vTextcoords");
     hole_program_info.uniform_locations.hideLevel = gl.getUniformLocation(hole_program, "hideLevel");
+    hole_program_info.uniform_locations.textureMatrix = gl.getUniformLocation(hole_program, "textureMatrix");
+    hole_program_info.uniform_locations.shadowTexture = gl.getUniformLocation(hole_program, "shadowTexture");
     hole_program_info.program = hole_program;
 
 
@@ -429,6 +910,17 @@ function init() {
     sphere_program_info.uniform_locations.fade = gl.getUniformLocation(sphere_program, "fadeValue");
     sphere_program_info.attrib_locations.vPosition = gl.getAttribLocation(sphere_program, "vPosition");
     sphere_program_info.program = sphere_program;
+
+
+    // Shadow Program
+    shadow_program_info.uniform_locations.model = gl.getUniformLocation(shadow_program, "model");
+    shadow_program_info.uniform_locations.view = gl.getUniformLocation(shadow_program, "view");
+    shadow_program_info.uniform_locations.projection = gl.getUniformLocation(shadow_program, "projection");
+    shadow_program_info.uniform_locations.colorMult = gl.getUniformLocation(shadow_program, "colorMult");
+    shadow_program_info.attrib_locations.vPosition = gl.getAttribLocation(shadow_program, "vPosition");
+    shadow_program_info.attrib_locations.vColor = gl.getAttribLocation(shadow_program, "vColor");
+    shadow_program_info.program = shadow_program;
+
     
     // Create a texture.
     load_texture(block_texture, "./assets/images/rusty-block.jpg");
@@ -445,6 +937,8 @@ function init() {
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
 
     set_app_state(APP_STATES.MAIN_MENU);
+
+    create_texture_matrix();
 
     requestAnimFrame(render);
 };
@@ -476,7 +970,11 @@ function set_main_menu_state() {
     }
 
     if (saved_state !== null) {
-        game_state = saved_state;
+        game_state.level = saved_state.level;
+        game_state.matrix = saved_state.matrix; // 10 x 15
+        game_state.move_counter = saved_state.move_counter;
+        game_state.attempts = saved_state.attempts;
+        game_state.timer = saved_state.timer;
         show_main_menu(true);
     }
     else {
@@ -509,14 +1007,9 @@ function set_playing_state() {
         play_sound(SOUNDS.ambience);
         reset_camera();
         fade_counter = 0;
-        start_timer();
         show_in_game_panels(game_state);
+        start_timer();
         show_menu_button();
-
-        if (game_state.level === 1) {
-            set_anotation_text(REMINDER_TEXT[0]);
-            show_anotation();
-        }
     }    
 } 
 
@@ -609,25 +1102,27 @@ function visualize_app_state() {
 
 //------------------------------------------------------------------------------
 
-function draw_app_state() {
+function draw_app_state(draw_shadow) {
     switch (current_app_state) {
         case APP_STATES.PLAYING:
         case APP_STATES.INGAME_MENU:
             if (player.block_type == LONG) {
-                draw_object(objects_to_draw[2]);
+                draw_object(objects_to_draw[2], draw_shadow);
             }
             else {
-                draw_object(objects_to_draw[0]);
-                draw_object(objects_to_draw[1]);
+                draw_object(objects_to_draw[0], draw_shadow);
+                draw_object(objects_to_draw[1], draw_shadow);
             }
 
             // Background sphere
-            draw_object(objects_to_draw[3]);
+            if (!draw_shadow) {
+                draw_object(objects_to_draw[3]);
+            }
         
             for (let i = TILES_OFFSET; i < objects_to_draw.length; i++) {
                 const object = objects_to_draw[i];
                 if (!object.hide) {
-                    draw_object(object);
+                    draw_object(object, draw_shadow);
                 }
             }
             break;
@@ -675,6 +1170,7 @@ function get_camera_quadrant() {
 function idle_state() {
 
     let dir = null;
+
     if (player_action.left)       { dir = LEFT;  }
     else if (player_action.right) { dir = RIGHT; }
     else if (player_action.up)    { dir = UP;    }
@@ -1449,17 +1945,32 @@ function process_events() {
 // Rendering Event Function
 //----------------------------------------------------------------------------
 
-function draw_object(object) {
-    gl.useProgram(object.program_info.program);
+function draw_object(object, draw_shadow) {
+    if (draw_shadow) {
+        gl.useProgram(shadow_program);
 
-    // Setup buffers and attributes
-    set_buffers_and_attributes(object.program_info, object.points_array, object.colors_array, object.textcoords_array);
+        set_buffers_and_attributes(shadow_program_info, object.points_array, object.colors_array, object.textcoords_array);
 
-    // Set the uniforms
-    set_uniforms(object.program_info, object.uniforms);
+        set_shadow_camera_uniforms(shadow_program_info);
 
-    // Draw
-    gl.drawArrays(object.primitive, 0, object.points_array.length);
+        set_uniforms(shadow_program_info, object.uniforms);
+        
+        // Draw
+        gl.drawArrays(object.primitive, 0, object.points_array.length);
+    } else {
+        gl.useProgram(object.program_info.program);
+
+        // Setup buffers and attributes
+        set_buffers_and_attributes(object.program_info, object.points_array, object.colors_array, object.textcoords_array);
+
+        set_camera_uniforms(object.program_info);
+
+        // Set the uniforms
+        set_uniforms(object.program_info, object.uniforms);
+
+        // Draw
+        gl.drawArrays(object.primitive, 0, object.points_array.length);
+    }
 }
 
 function render() {
@@ -1471,8 +1982,6 @@ function render() {
     update_delta_time();
     update_app_state()
 
-    gl.clear(gl.DEPTH_BUFFER_BIT | gl.COLOR_BUFFER_BIT);	
-
     //----------------------------------------------------------------------------
 
     visualize_app_state();
@@ -1481,10 +1990,29 @@ function render() {
     // DRAW
     //----------------------------------------------------------------------------
 
-    draw_app_state();
+    const draw_shadow = true;
     
-    requestAnimationFrame(render);
+    //draw to the depth texture
+    gl.activeTexture(shadow_tools.texture_unit);
+    gl.bindTexture(gl.TEXTURE_2D, null);
 
+    gl.bindFramebuffer(gl.FRAMEBUFFER, shadow_tools.depth_framebuffer);
+    gl.viewport(0, 0, shadow_tools.depth_texture_size, shadow_tools.depth_texture_size);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    draw_app_state(draw_shadow);
+
+    // now draw scene to the canvas projecting the depth texture into the scene
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    gl.activeTexture(shadow_tools.texture_unit);
+    gl.bindTexture(gl.TEXTURE_2D, shadow_tools.depth_texture);
+
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    draw_app_state(false);
+
+    requestAnimationFrame(render);
 }
 
 //----------------------------------------------------------------------------
@@ -1510,28 +2038,52 @@ function set_primitive(objects_to_draw) {
     });
 }
 
-function set_uniforms(program_info, uniforms) {
+function set_camera_uniforms(program_info) {
     projection = perspective( camera.fov, canvas.width/canvas.height, 0.1, 100.0 );
 	gl.uniformMatrix4fv( program_info.uniform_locations.projection, gl.FALSE, projection ); // copy projection to uniform value in shader
 
+    var view = lookAt(camera.eye, camera.at, camera.up);
+    gl.uniformMatrix4fv(program_info.uniform_locations.view, gl.FALSE, view); // copy view to uniform value in shader
+}
+
+function set_shadow_camera_uniforms(program_info) {
+	gl.uniformMatrix4fv(program_info.uniform_locations.projection, gl.FALSE, light_projection );
+    gl.uniformMatrix4fv(program_info.uniform_locations.view, gl.FALSE, light_view);
+}
+
+function is_location(location) {
+    return location !== undefined &&
+        location !== null && location !== -1;
+}
+
+function set_uniforms(program_info, uniforms) {
     // Copy uniform model values to corresponding values in shaders
     gl.uniform4f(program_info.uniform_locations.colorMult, uniforms.u_color_mult[0], uniforms.u_color_mult[1], uniforms.u_color_mult[2], uniforms.u_color_mult[3]);
     gl.uniformMatrix4fv(program_info.uniform_locations.model, gl.FALSE, uniforms.u_model);
-
-    var view = lookAt(camera.eye, camera.at, camera.up);
-    gl.uniformMatrix4fv(program_info.uniform_locations.view, gl.FALSE, view); // copy view to uniform value in shader
+    
+    if (is_location(program_info.uniform_locations.textureMatrix)) {
+        gl.uniformMatrix4fv(program_info.uniform_locations.textureMatrix, gl.FALSE, shadow_tools.texture_matrix);
+    }
+    
+    if (is_location(program_info.uniform_locations.shadowTexture))
+    {
+        gl.activeTexture(shadow_tools.texture_unit);
+        gl.bindTexture(gl.TEXTURE_2D, shadow_tools.depth_texture);
+        gl.uniform1i(program_info.uniform_locations.shadowTexture, shadow_tools.texture_unit_num);
+    }
 
     //Hide Level
-    if (program_info.uniform_locations.hideLevel) {
+    if (is_location(program_info.uniform_locations.hideLevel)) {
         gl.uniform1f(program_info.uniform_locations.hideLevel, uniforms.u_hide_level.level);
     }
 
-    if (program_info.uniform_locations.fade) {
+    if (is_location(program_info.uniform_locations.fade)) {
         gl.uniform1f(program_info.uniform_locations.fade, uniforms.fade);
     }
 
-    if (program_info.texture_location) {
+    if (is_location(program_info.texture_location)) {
         gl.activeTexture(uniforms.texture.unit);
+        gl.bindTexture(gl.TEXTURE_2D, uniforms.texture.texture);
         gl.uniform1i(program_info.texture_location, uniforms.texture.unit_num);
     }
 }
@@ -1540,22 +2092,23 @@ function set_buffers_and_attributes(program_info, points_array, colors_array, te
     // Load the data into GPU data buffers
     // Vertices
     //var vertex_buffer = gl.createBuffer();
+
     gl.bindBuffer( gl.ARRAY_BUFFER, vertex_buffer );
-    gl.bufferData( gl.ARRAY_BUFFER,  flatten(points_array), gl.STATIC_DRAW );
+    gl.bufferData( gl.ARRAY_BUFFER, flatten(points_array), gl.STATIC_DRAW );
     gl.vertexAttribPointer( program_info.attrib_locations.vPosition, 4, gl.FLOAT, gl.FALSE, 0, 0 );
     gl.enableVertexAttribArray( program_info.attrib_locations.vPosition );
 
     // Colors
     //var color_buffer = gl.createBuffer();
-    if (colors_array) {
+    if (is_location(program_info.attrib_locations.vColor)) {
         gl.bindBuffer( gl.ARRAY_BUFFER, color_buffer );
-        gl.bufferData( gl.ARRAY_BUFFER,  flatten(colors_array), gl.STATIC_DRAW );
+        gl.bufferData( gl.ARRAY_BUFFER, flatten(colors_array), gl.STATIC_DRAW );
         gl.vertexAttribPointer( program_info.attrib_locations.vColor, 4, gl.FLOAT, gl.FALSE, 0, 0 );
         gl.enableVertexAttribArray( program_info.attrib_locations.vColor );
     }
 
     // (u, v)
-    if (textcoords_array) {
+    if (is_location(program_info.attrib_locations.vTextcoords)) {
         //var textcoords_buffer = gl.createBuffer();
         gl.bindBuffer( gl.ARRAY_BUFFER, textcoords_buffer );
         gl.bufferData(gl.ARRAY_BUFFER, flatten(textcoords_array), gl.STATIC_DRAW );
@@ -1563,6 +2116,18 @@ function set_buffers_and_attributes(program_info, points_array, colors_array, te
         gl.enableVertexAttribArray( program_info.attrib_locations.vTextcoords );       
     }
 }
+
+function create_texture_matrix() {
+    let texture_matrix = new mat4();
+    texture_matrix = mult(texture_matrix, translate(0.5, 0.5, 0.5));
+    texture_matrix = mult(texture_matrix, scale(0.5, 0.5, 0.5));
+    texture_matrix = mult(texture_matrix, light_projection);
+    // use the inverse of this world matrix to make
+    // a matrix that will transform other positions
+    // to be relative this world space.
+    shadow_tools.texture_matrix = mult(texture_matrix, light_view);
+}
+
 
 //------------------------------------------------------------------------------
 // Shaders uniform variadic parameters

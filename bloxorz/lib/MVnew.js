@@ -611,7 +611,7 @@ function length(u) {
 //----------------------------------------------------------------------------
 
 function normalize(u, excludeLastComponent) {
-  if (u.type != 'vec3' && u.type != 'vec4') {
+  if (u.type != 'vec2' && u.type != 'vec3' && u.type != 'vec4') {
 
     throw "normalize: not a vector type";
   }

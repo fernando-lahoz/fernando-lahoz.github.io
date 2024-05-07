@@ -36,7 +36,7 @@ let player_action = {
     left:  false, // -x
     right: false, // +x
     up:    false, // -z
-    down:  false, // +z
+    down:  false // +z
 };
 
 function reset_player_action() {
@@ -157,7 +157,7 @@ function get_longblock_rotation() {
     }
 }
 
-let game_state = {
+const game_state = {
     level: 1,
     matrix: null, // 10 x 15
     
@@ -171,18 +171,15 @@ let game_state = {
 };
 
 function reset_game_state() {
-    game_state = {
-        level: 1,
-        matrix: null, // 10 x 15
-        
-        move_counter: 0,
-        attempts: 0,
-        timer: {
-            hours: 0,
-            minutes: 0,
-            seconds: 0,
-        },
-    };
+    game_state.level = 1;
+    game_state.matrix = null; // 10 x 15
+    game_state.move_counter = 0;
+    game_state.attempts = 0;
+    game_state.timer =  {
+                            hours: 0,
+                            minutes: 0,
+                            seconds: 0,
+                        };
 }
 
 let timer_interval_id = null;

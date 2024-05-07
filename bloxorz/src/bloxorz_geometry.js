@@ -202,6 +202,15 @@ const hole_vertices = [
     [-0.499, 0.5,-0.499, 1], //5
     [-0.499,-25, 0.499, 1], //6
     [-0.499,-25,-0.499, 1], //7
+
+    [ 0.53, 0.49, 0.53, 1], //8
+    [ 0.53, 0.49,-0.53, 1], //9
+    [ 0.53,-25, 0.53, 1], //10
+    [ 0.53,-25,-0.53, 1], //11
+    [-0.53, 0.49, 0.53, 1], //12
+    [-0.53, 0.49,-0.53, 1], //13
+    [-0.53,-25, 0.53, 1], //14
+    [-0.53,-25,-0.53, 1], //15
 ];
 
 const hole_indices = [
@@ -216,6 +225,15 @@ const hole_indices = [
 
     6,7,3, //bottom
     6,3,2,
+
+    8,12,14, //front
+    8,14,10,
+    9,8,10, //right
+    9,10,11, 
+    13,9,11, //back
+    13,11,15,
+    12,13,15, //left
+    12,15,14,
 ];
 
 const points_hole = [];
@@ -228,6 +246,12 @@ const color_hole = [
     lightblack, lightblack, lightblack, lightblack, lightblack, lightblack,
 
     white, white, white, white, white, white,
+
+    white, white, white, white, white, white, 
+    white, white, white, white, white, white, 
+    white, white, white, white, white, white, 
+    white, white, white, white, white, white, 
+    white, white, white, white, white, white
 ];
 
 // --- FLOOR -------------------------------------------------------------------
