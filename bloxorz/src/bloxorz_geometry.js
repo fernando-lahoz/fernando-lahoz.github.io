@@ -89,6 +89,13 @@ for (let i = 0; i < 6; i++) {
     }
 }
 
+const hole_textcoords = [];
+for (let i = 0; i < 9; i++) { 
+    for (let j = 0; j < 12; j++) {
+        hole_textcoords.push(tile_textcoords_per_face[j]);
+    }
+}
+
 // const cube_textcoords_img_coords = [
 //      640,    0,       0,    0,       0, 1282, //front
 //      640,    0,       0, 1282,     640, 1282,

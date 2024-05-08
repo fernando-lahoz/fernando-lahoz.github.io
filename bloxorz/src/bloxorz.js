@@ -1746,7 +1746,7 @@ function generate_floor() {
                 objects_to_draw.push(object);
                 break;
             case HOLE:
-                hole_object = generate_tile(hole_program_info, points_hole, color_hole, tile_textcoords, j, -1, i);
+                hole_object = generate_tile(hole_program_info, points_hole, color_hole, hole_textcoords, j, -1, i);
                 hole_object.uniforms.u_hide_level = cube_hide_level;
                 objects_to_draw.push(hole_object);
                 break;

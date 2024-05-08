@@ -116,7 +116,7 @@
     <!-- Fragment shader -->
     <script id="tile-fragment-shader" type="x-shader/x-fragment">
         #define ALPHA (2.2)
-        #define BIAS 0.00125
+        #define BIAS 0.0015
 
         precision mediump float;
         varying vec4 varColor;
@@ -148,7 +148,7 @@
             {
                 float x = varTextcoords[0];
                 float y = varTextcoords[1];
-                float val =  exp(ALPHA * (pow((x-0.5),4.0) + pow((y-0.5),4.0)));
+                float val =  exp(ALPHA * ((x-0.5)*(x-0.5)*(x-0.5)*(x-0.5) + (y-0.5)*(y-0.5)*(y-0.5)*(y-0.5)));
 
                 gl_FragColor = varColor * colorMult * vec4( val, val, val, 1 ) * shadowLight;
             }
@@ -156,7 +156,7 @@
     </script>
     <script id="hole-fragment-shader" type="x-shader/x-fragment">
         #define ALPHA (6.0)
-        #define BIAS 0.00125
+        #define BIAS 0.0014
 
         precision mediump float;
         varying vec4 varColor;
@@ -191,14 +191,14 @@
 
             float x = varTextcoords[0];
             float y = varTextcoords[1];
-            float val =  exp(-ALPHA * (pow((x-0.5),4.0) + pow((y-0.5),4.0)));
+            float val = exp(-ALPHA * ((x-0.5)*(x-0.5)*(x-0.5)*(x-0.5) + (y-0.5)*(y-0.5)*(y-0.5)*(y-0.5)));
 
             gl_FragColor = varColor * colorMult * vec4( val, val, val, 1 ) * shadowLight;
             
         }
     </script>
     <script id="block-fragment-shader" type="x-shader/x-fragment">
-        #define BIAS 0.00125
+        #define BIAS 0.0014
         #define ALPHA (16.0)
 
         precision mediump float;
