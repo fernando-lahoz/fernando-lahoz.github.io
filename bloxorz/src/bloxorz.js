@@ -1020,7 +1020,7 @@ function set_ingame_menu_state() {
 
 function set_end_screen_state() {
     remaining_level_screen_time = LEVEL_SCREEN_TIME;
-    play_sound(SOUNDS.level_screen);
+    play_sound(SOUNDS.menu_song);
     show_end_screen();
 }
 
@@ -1068,11 +1068,7 @@ function update_ingame_menu_state() {
 }
 
 function update_end_screen_state() {
-    remaining_level_screen_time -= delta_time;
-    if (remaining_level_screen_time <= 0) {
-        hide_end_screen();
-        set_app_state(APP_STATES.MAIN_MENU);
-    }
+
 }
 
 function update_app_state() {

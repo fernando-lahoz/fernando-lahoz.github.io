@@ -21,6 +21,8 @@ MAIN_MENU.classList.add("option-container");
 MAIN_MENU.style = "position : absolute; top: 62%; left:33%;";
 
 const CREDITS_MENU = MAIN_MENU.cloneNode(true);
+const END_SCREEN_MENU = MAIN_MENU.cloneNode(true);
+END_SCREEN_MENU.style = "position: absolute; bottom: 10%; left: 15%;";
 
 const START_NEW_GAME_BUTTON = document.createElement("button");
 START_NEW_GAME_BUTTON.classList.add("bloxorz-text", "menu-option", "bloxorz-click");
@@ -51,11 +53,18 @@ CREDITS_BUTTON.onclick = toggle_credits;
 CREDITS_BUTTON.onmouseover = () => { play_sound(SOUNDS.menu_hover); }
 CREDITS_BUTTON.onmousedown = () => { play_sound(SOUNDS.menu_click); }
 
-CREDITS_BUTTON_RETURN = CREDITS_BUTTON.cloneNode(true);
+const CREDITS_BUTTON_RETURN = CREDITS_BUTTON.cloneNode(true);
 CREDITS_BUTTON_RETURN.innerText = "Return";
 CREDITS_BUTTON_RETURN.onclick = toggle_credits;
 CREDITS_BUTTON_RETURN.onmouseover = () => { play_sound(SOUNDS.menu_hover); }
 CREDITS_BUTTON_RETURN.onmousedown = () => { play_sound(SOUNDS.menu_click); }
+
+const END_SCREEN_BUTTON_RETURN = document.createElement("button");
+END_SCREEN_BUTTON_RETURN.classList.add("bloxorz-text", "menu-option", "bloxorz-click");
+END_SCREEN_BUTTON_RETURN.innerText = "< Go to title screen";
+END_SCREEN_BUTTON_RETURN.onclick = hide_end_screen;
+END_SCREEN_BUTTON_RETURN.onmouseover = () => { play_sound(SOUNDS.menu_hover); }
+END_SCREEN_BUTTON_RETURN.onmousedown = () => { play_sound(SOUNDS.menu_click); }
 
 const CREDITS = document.createElement("div");
 CREDITS.classList.add("bloxorz-text", "credits-content");
@@ -67,6 +76,7 @@ MAIN_MENU.appendChild(TOGGLE_SOUND_BUTTON);
 MAIN_MENU.appendChild(CREDITS_BUTTON);
 
 CREDITS_MENU.appendChild(CREDITS_BUTTON_RETURN);
+END_SCREEN_MENU.appendChild(END_SCREEN_BUTTON_RETURN);
 
 const SELECTOR_COLUMN_CONTAINER = document.createElement("div");
 SELECTOR_COLUMN_CONTAINER.classList.add("selector-column-container");
@@ -798,10 +808,45 @@ function hide_in_game_menu() {
 
 //--- END SCREEN ---------------------------------------------------------------
 
+var END_SCREEN_PANEL
+
+function substituteFonts(elemento) {
+
+    // Verificar si el elemento es un nodo hoja
+    if (elemento.nodeType === 1) { // 1 representa un elemento HTML
+
+        // Si el nodo es hoja y tiene la clase guid-bloxorz-text, cambiarla por bloxorz-text
+        if (elemento.classList.contains("guid-bloxorz-text")) {
+            elemento.classList.remove("guid-bloxorz-text");
+            elemento.classList.add("bloxorz-text");
+        }
+        // Si el elemento tiene hijos, recorrer cada hijo
+        if (elemento.childNodes.length > 0) {
+            elemento.childNodes.forEach(function (hijo) {
+                substituteFonts(hijo);
+            });
+        }
+    }
+}
+
 function show_end_screen() {
+
+    END_SCREEN_PANEL = INFORMATION_PANEL.cloneNode(true);
+    END_SCREEN_PANEL.style = "position: absolute; left : 30% ; bottom: 25%;";
+
+    substituteFonts(END_SCREEN_PANEL);
+
     game_window.appendChild(CONGRATS_TITLE);
+    game_window.appendChild(END_SCREEN_MENU);
+    game_window.appendChild(END_SCREEN_PANEL);
 }
 
 function hide_end_screen() {
+
     game_window.removeChild(CONGRATS_TITLE);
+    game_window.removeChild(END_SCREEN_MENU);
+    game_window.removeChild(END_SCREEN_PANEL);
+    END_SCREEN_PANEL = null;
+
+    set_app_state(APP_STATES.MAIN_MENU);
 }
